@@ -50,14 +50,76 @@ particles_c_realloc(struct psc_particles *prts, int new_n_part)
 #define H5_CHK(ierr) assert(ierr >= 0)
 #define CE assert(ierr == 0)
 
+#ifdef HAVE_ADIOS
+#include <psc_adios.h>
+
+// Define the adios group for particle output of this type
+// FIXME: this being hard-coded at the particle type level bothers me,
+// but that's a bigger problem with how the particle i/o works
+static void
+psc_particles_c_define_adios_vars(struct psc_particles *prts, struct mrc_domain *domain, int64_t m_adios_group)
+{
+  assert(sizeof(particle_c_t) / sizeof(particle_c_real_t) == 10);
+  assert(sizeof(particle_c_real_t) == sizeof(double));
+  
+  // use our global patch number as the adios "path"
+  struct mrc_patch_info info;
+  mrc_domain_get_local_patch_info(domain, prts->p, &info);
+
+  char varnparts[50];
+  sprintf(varnparts, "gp%d/n_part", info.global_patch);
+  char vardata[50];
+  sprintf(vardata, "gp%d/particles", info.global_patch);
+  char partdimensions[100];
+  sprintf(partdimensions, "%s, 10", varnparts);
+  // define var calls don't return an error code. Instead they return a uid, which we won't use.
+  adios_define_var(m_adios_group, varnparts, "", adios_integer, "","","");
+  adios_define_var(m_adios_group, vardata, "", adios_double, partdimensions, "", "");
+}
+
+// Calculate this patches contribution to the ADIOS payload
+static uint64_t
+psc_particles_c_adios_size(struct psc_particles *prts)
+{
+  // FIXME: obviously this could be made more general, if we need it to do float particles
+  assert(sizeof(particle_c_t) / sizeof(particle_c_real_t) == 10);
+  assert(sizeof(particle_c_real_t) == sizeof(double));
+  // sizeof(nparts) + nparts * 10 * sizeof(double)
+  return 4 + prts->n_part * 10 * sizeof(double);
+}
+
+// write the particles using adios
+static void
+psc_particles_c_write_adios(struct psc_particles *prts, struct mrc_domain *domain, int64_t fd_p)
+{
+  int ierr;
+
+  assert(sizeof(particle_c_t) / sizeof(particle_c_real_t) == 10);
+  assert(sizeof(particle_c_real_t) == sizeof(double));
+  
+  // use our global patch number as the adios "path"
+  struct mrc_patch_info info;
+  mrc_domain_get_local_patch_info(domain, prts->p, &info);
+
+  char varnparts[50];
+  sprintf(varnparts, "gp%d/n_part", info.global_patch);
+  char vardata[50];
+  sprintf(vardata, "gp%d/particles", info.global_patch);
+
+  ierr = adios_write(fd_p, varnparts, (void *) &prts->n_part); AERR(ierr);
+  ierr = adios_write(fd_p, vardata, (void *) particles_c_get_one(prts, 0)); AERR(ierr);
+
+}
+
+#endif 
+
 // ----------------------------------------------------------------------
 // psc_particles_c_write
 
 static void
 psc_particles_c_write(struct psc_particles *prts, struct mrc_io *io)
 {
-  int ierr;
-  assert(sizeof(particle_c_t) / sizeof(particle_c_real_t) == 10);
+  int ierr;  assert(sizeof(particle_c_t) / sizeof(particle_c_real_t) == 10);
   assert(sizeof(particle_c_real_t) == sizeof(double));
 
   long h5_file;
@@ -119,5 +181,10 @@ struct psc_particles_ops psc_particles_c_ops = {
 #ifdef HAVE_LIBHDF5_HL
   .write                   = psc_particles_c_write,
   .read                    = psc_particles_c_read,
+#endif
+#ifdef HAVE_ADIOS
+  .define_adios            = psc_particles_c_define_adios_vars,
+  .calc_size_adios         = psc_particles_c_adios_size,
+  .write_adios             = psc_particles_c_write_adios,
 #endif
 };

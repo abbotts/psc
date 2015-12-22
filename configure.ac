@@ -79,6 +79,14 @@ AS_IF([test "$have_hdf5" != "no"],
       [AC_DEFINE([HAVE_HDF5], [], [we have HDF5 library + headers])])
 AM_CONDITIONAL([HAVE_HDF5], [test "$have_hdf5" != "no"])
 
+PSC_CHECK_ADIOS(1.9.0)
+CFLAGS="$ADIOS_CFLAGS $CFLAGS"
+LIBS="$ADIOS_LIBS $LIBS"
+AS_IF([test "$have_adios" != "no"],
+      [AC_DEFINE([HAVE_ADIOS], [], [we have adios library + headers])])
+AM_CONDITIONAL([HAVE_ADIOS], [test "$have_adios" != "no"])
+
+
 # check for PAPI
 AC_ARG_WITH([papi],AS_HELP_STRING([--without-papi], [Disable PAPI]))
 
