@@ -3,6 +3,11 @@
 
 #include <mrc_params.h>
 
+#ifdef HAVE_ADIOS
+#include "psc_adios.h"
+#endif
+
+
 int
 psc_main(int *argc, char ***argv, struct psc_ops *type)
 {
@@ -14,6 +19,18 @@ psc_main(int *argc, char ***argv, struct psc_ops *type)
 
   int from_checkpoint = -1;
   mrc_params_get_option_int("from_checkpoint", &from_checkpoint);
+
+#ifdef HAVE_ADIOS
+  bool adios_checkpoint = false;
+  mrc_params_get_option_bool("adios_checkpoint", &adios_checkpoint);
+  if (adios_checkpoint) {
+    int ierr;
+    ierr = adios_init_noxml(MPI_COMM_WORLD); AERR(ierr);
+    // Having a fixed buffer size is probably a bad idea..
+    // Can noxml adios use a percentage of free space?
+    ierr = adios_allocate_buffer(ADIOS_BUFFER_ALLOC_NOW, 250); AERR(ierr);
+  }
+#endif
 
   struct psc *psc;
 
@@ -36,6 +53,11 @@ psc_main(int *argc, char ***argv, struct psc_ops *type)
     // The standard implementation, used here, will set particles using
     // psc_bubble_init_npt and the fields using setup_field()
     psc_setup(psc);
+
+#ifdef HAVE_ADIOS
+    // FIXME: Not the right way to set this.
+    psc->prm.adios_checkpoint = adios_checkpoint;
+#endif
   } else {
     // get psc object from checkpoint file
 
@@ -64,7 +86,13 @@ psc_main(int *argc, char ***argv, struct psc_ops *type)
   
   // psc_destroy() just cleans everything up when we're done.
   psc_destroy(psc);
-  
+#ifdef HAVE_ADIOS
+  if(adios_checkpoint) {
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    int ierr = adios_finalize(rank); AERR(ierr);// adios requires rank be passed in here for some transport methods...
+  }
+#endif
   libmrc_params_finalize();
   MPI_Finalize();
 

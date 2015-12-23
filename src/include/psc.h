@@ -113,6 +113,7 @@ struct psc_param {
   int stats_every; ///< output timing and other info every so many steps
   bool detailed_profiling; ///< output profiling info for each process separately
   double theta_xz; ///< rotate anisotropic maxwellian in x-z plane
+  bool adios_checkpoint; ///< checkpoint particles using the adios library
 };
 
 /// coefficients needed for computations

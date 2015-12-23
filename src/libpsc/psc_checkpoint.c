@@ -40,20 +40,13 @@ psc_read_checkpoint(MPI_Comm comm, int n)
 
 #ifdef HAVE_ADIOS
 #include "psc_adios.h"
-// have we fired up adios for particle dumps yet?
-static bool adios_inited;
 
-static void 
-psc_adios_init(struct psc *psc)
+static bool
+psc_adios_define(struct psc *psc)
 {
-  assert(!adios_inited);
   int ierr;
   int64_t m_adios_group;
   
-  ierr = adios_init_noxml(psc_comm(psc)); AERR(ierr);
-  // Having a fixed buffer size is probably a bad idea..
-  // Can noxml adios use a percentage of free space?
-  ierr = adios_allocate_buffer(ADIOS_BUFFER_ALLOC_NOW, 250); AERR(ierr);
   // Declare the particles group, without any statistics
   ierr = adios_declare_group(&m_adios_group, "mparticles", "", adios_flag_no); AERR(ierr);
   ierr = adios_select_method(m_adios_group, "MPI", "", ""); AERR(ierr);
@@ -62,13 +55,12 @@ psc_adios_init(struct psc *psc)
     struct psc_particles *prts = psc_mparticles_get_patch(psc->particles, p);
     psc_particles_define_vars_adios(prts, psc->mrc_domain, m_adios_group);
   }
-  adios_inited = true;
+  return true;
 }
 
 static void
 psc_adios_write(struct psc *psc)
 {
-  assert(adios_inited);
   int ierr;
   // the adios group for writing (collective call)
   char filename[256];
@@ -125,5 +117,19 @@ psc_write_checkpoint(struct psc *psc)
   mrc_io_write_path(io, "checkpoint", "psc", psc);
   mrc_io_close(io);
   mrc_io_destroy(io);
+
+#ifdef HAVE_ADIOS
+
+  static bool adios_defined;
+
+  if (psc->prm.adios_checkpoint) {
+    if (!adios_defined) {
+      adios_defined = psc_adios_define(psc);
+    }
+    psc_adios_write(psc);
+  }
+
+#endif
+
 }
 
