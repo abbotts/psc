@@ -20,9 +20,11 @@ void psc_particles_reorder(struct psc_particles *prts);
 
 #ifdef HAVE_ADIOS
 #include "psc_adios.h"
+#include <adios_read.h>
 void psc_particles_define_vars_adios(struct psc_particles *prts, struct mrc_domain *domain, int64_t m_adios_group);
 uint64_t psc_particles_calc_size_adios(struct psc_particles *prts);
 void psc_particles_write_adios(struct psc_particles *prts, struct mrc_domain *domain, int64_t fd_p);
+void psc_particles_read_adios(struct psc_particles *prts, struct mrc_domain *domain, const ADIOS_FILE *afp);
 #endif
 
 

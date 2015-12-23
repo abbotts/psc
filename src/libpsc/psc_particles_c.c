@@ -111,6 +111,40 @@ psc_particles_c_write_adios(struct psc_particles *prts, struct mrc_domain *domai
 
 }
 
+#include <adios_read.h>
+// write the particles using adios
+static void
+psc_particles_c_read_adios(struct psc_particles *prts, struct mrc_domain *domain, const ADIOS_FILE * afp)
+{
+  int ierr;
+
+  assert(mrc_domain_is_setup(domain));
+  assert(sizeof(particle_c_t) / sizeof(particle_c_real_t) == 10);
+  assert(sizeof(particle_c_real_t) == sizeof(double));
+  
+  // use our global patch number as the adios "path"
+  struct mrc_patch_info info;
+  mrc_domain_get_local_patch_info(domain, prts->p, &info);
+
+  char varnparts[50];
+  sprintf(varnparts, "gp%d/n_part", info.global_patch);
+  char vardata[50];
+  sprintf(vardata, "gp%d/particles", info.global_patch);
+
+  // Because I'm paranoid, check that the number of particles 
+  // is the same in the bp and hdf5 files
+  ADIOS_VARINFO *npart_info = adios_inq_var(afp, varnparts); assert(npart_info);
+  assert(prts->n_part == *(int *)npart_info->value);
+  adios_free_varinfo(npart_info);
+
+  // schedule a read for file 'afp', NULL selection, variable vardata,
+  // starting with the 0th step, reading one step, and putting into the
+  // particle data array. 
+  ierr = adios_schedule_read(afp, NULL, vardata, 0, 1, 
+                            (void *) particles_c_get_one(prts, 0)); AERR(ierr);
+
+}
+
 #endif 
 
 // ----------------------------------------------------------------------
@@ -186,5 +220,6 @@ struct psc_particles_ops psc_particles_c_ops = {
   .define_adios            = psc_particles_c_define_adios_vars,
   .calc_size_adios         = psc_particles_c_adios_size,
   .write_adios             = psc_particles_c_write_adios,
+  .read_adios              = psc_particles_c_read_adios,
 #endif
 };

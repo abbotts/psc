@@ -5,6 +5,7 @@
 #include "psc_particles.h"
 #ifdef HAVE_ADIOS
 #include "psc_adios.h"
+#include <adios_read.h>
 #endif
 
 struct psc_particles {
@@ -21,6 +22,7 @@ struct psc_particles_ops {
   void (*define_adios)(struct psc_particles *prts, struct mrc_domain *domain, int64_t m_adios_group);
   uint64_t (*calc_size_adios)(struct psc_particles *prts);
   void (*write_adios)(struct psc_particles *prts, struct mrc_domain *domain, int64_t fd_p);
+  void (*read_adios)(struct psc_particles *prts, struct mrc_domain *domain, const ADIOS_FILE * afp);
 #endif
 };
 

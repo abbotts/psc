@@ -20,18 +20,6 @@ psc_main(int *argc, char ***argv, struct psc_ops *type)
   int from_checkpoint = -1;
   mrc_params_get_option_int("from_checkpoint", &from_checkpoint);
 
-#ifdef HAVE_ADIOS
-  bool adios_checkpoint = false;
-  mrc_params_get_option_bool("adios_checkpoint", &adios_checkpoint);
-  if (adios_checkpoint) {
-    int ierr;
-    ierr = adios_init_noxml(MPI_COMM_WORLD); AERR(ierr);
-    // Having a fixed buffer size is probably a bad idea..
-    // Can noxml adios use a percentage of free space?
-    ierr = adios_allocate_buffer(ADIOS_BUFFER_ALLOC_NOW, 250); AERR(ierr);
-  }
-#endif
-
   struct psc *psc;
 
   if (from_checkpoint < 0) {
@@ -54,10 +42,6 @@ psc_main(int *argc, char ***argv, struct psc_ops *type)
     // psc_bubble_init_npt and the fields using setup_field()
     psc_setup(psc);
 
-#ifdef HAVE_ADIOS
-    // FIXME: Not the right way to set this.
-    psc->prm.adios_checkpoint = adios_checkpoint;
-#endif
   } else {
     // get psc object from checkpoint file
 
@@ -76,6 +60,24 @@ psc_main(int *argc, char ***argv, struct psc_ops *type)
     }
   }
 
+  if (psc->prm.adios_checkpoint) {
+#ifdef HAVE_ADIOS
+    int ierr;
+    ierr = adios_init_noxml(MPI_COMM_WORLD); AERR(ierr);
+    // Having a fixed buffer size is probably a bad idea..
+    // Can noxml adios use a percentage of free space?
+    ierr = adios_allocate_buffer(ADIOS_BUFFER_ALLOC_NOW, 250); AERR(ierr);
+#else
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    if (rank == 0) {
+      fprintf(stderr, "ADIOS checkpoint requested, but psc was not built with adios!\n");
+      fprintf(stderr, "Using standard checkpointing instead.\n");
+    }
+    psc_set_param_bool(psc, "adios_checkpoint", false);
+#endif
+  }
+
   // psc_view() will just print a whole lot of info about the psc object and
   // sub-objects, in particular all the parameters.
   psc_view(psc);
@@ -87,7 +89,7 @@ psc_main(int *argc, char ***argv, struct psc_ops *type)
   // psc_destroy() just cleans everything up when we're done.
   psc_destroy(psc);
 #ifdef HAVE_ADIOS
-  if(adios_checkpoint) {
+  if(psc->prm.adios_checkpoint) {
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     int ierr = adios_finalize(rank); AERR(ierr);// adios requires rank be passed in here for some transport methods...

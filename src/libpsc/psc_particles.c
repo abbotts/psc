@@ -43,6 +43,14 @@ psc_particles_write_adios(struct psc_particles *prts, struct mrc_domain *domain,
     psc_particles_ops(prts)->write_adios(prts, domain, fd_p);
   }
 }
+
+void
+psc_particles_read_adios(struct psc_particles *prts, struct mrc_domain *domain, const ADIOS_FILE *afp)
+{
+  if (psc_particles_ops(prts)->read_adios) {
+    psc_particles_ops(prts)->read_adios(prts, domain, afp);
+  }
+}
 #endif
 
 // ======================================================================
