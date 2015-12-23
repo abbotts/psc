@@ -164,7 +164,14 @@ psc_particles_c_write(struct psc_particles *prts, struct mrc_io *io)
   ierr = H5LTset_attribute_int(group, ".", "p", &prts->p, 1); CE;
   ierr = H5LTset_attribute_int(group, ".", "n_part", &prts->n_part, 1); CE;
   ierr = H5LTset_attribute_uint(group, ".", "flags", &prts->flags, 1); CE;
-  if (prts->n_part > 0) {
+
+  int adios_parts = 0;
+#ifdef HAVE_ADIOS
+  mrc_io_get_param_int(io, "adios_particles", &adios_parts);
+#endif
+  ierr = H5LTset_attribute_int(group, ".", "adios_particles", &adios_parts, 1); CE;
+
+  if (prts->n_part > 0 && !adios_parts) {
     // in a rather ugly way, we write the long "kind" member as a double
     hsize_t hdims[2] = { prts->n_part, 10 };
     ierr = H5LTmake_dataset_double(group, "particles_c", 2, hdims,
@@ -188,7 +195,13 @@ psc_particles_c_read(struct psc_particles *prts, struct mrc_io *io)
   ierr = H5LTget_attribute_int(group, ".", "n_part", &prts->n_part); CE;
   ierr = H5LTget_attribute_uint(group, ".", "flags", &prts->flags); CE;
   psc_particles_setup(prts);
-  if (prts->n_part > 0) {
+
+  int adios_parts = 0;
+  if ( H5LTfind_attribute(group, "adios_particles") ) {
+    ierr = H5LTget_attribute_int(group, ".", "adios_particles", &adios_parts); CE;
+  }
+
+  if (prts->n_part > 0 && !adios_parts) {
     ierr = H5LTread_dataset_double(group, "particles_c",
 				   (double *) particles_c_get_one(prts, 0)); CE;
   }

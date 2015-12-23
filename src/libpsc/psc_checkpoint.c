@@ -156,6 +156,9 @@ psc_write_checkpoint(struct psc *psc)
   mrc_io_set_from_options(io);
   mrc_io_setup(io);
   mrc_io_open(io, "w", psc->timestep, psc->timestep * psc->dt);
+#ifdef HAVE_ADIOS
+  mrc_io_dict_add_int(io, "adios_particles", (int ) psc->prm.adios_checkpoint);
+#endif
   mrc_io_write_path(io, "checkpoint", "psc", psc);
   mrc_io_close(io);
   mrc_io_destroy(io);
