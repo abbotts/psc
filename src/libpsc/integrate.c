@@ -154,6 +154,7 @@ psc_integrate(struct psc *psc)
   int st_nr_particles = psc_stats_register("nr particles");
   int st_nr_photons = psc_stats_register("nr photons");
   int st_time_step = psc_stats_register("time entire step");
+  int st_time_checkpoint = psc_stats_register("time checkpoint");
 
   // generic stats categories
   st_time_particle = psc_stats_register("time particle update");
@@ -169,7 +170,9 @@ psc_integrate(struct psc *psc)
     if (!first_iteration &&
 	psc->prm.write_checkpoint_every_step > 0 &&
 	psc->timestep % psc->prm.write_checkpoint_every_step == 0) {
+      psc_stats_start(st_time_checkpoint);
       psc_write_checkpoint(psc);
+      psc_stats_stop(st_time_checkpoint);
     }
     first_iteration = false;
 
