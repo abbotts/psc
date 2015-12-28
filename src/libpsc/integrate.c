@@ -14,6 +14,9 @@
 #include "psc_event_generator.h"
 #include "psc_balance.h"
 #include "psc_checks.h"
+#ifdef HAVE_ADIOS
+#include "psc_adios.h"
+#endif
 
 #include <mrc_common.h>
 #include <mrc_profile.h>
@@ -85,6 +88,10 @@ int pr_time_step_no_comm; // FIXME, don't like globals
 void
 psc_step(struct psc *psc)
 {
+#ifdef HAVE_ADIOS
+  bool adios_io = psc->prm.adios_checkpoint;
+#endif
+
   if (psc_ops(psc) && psc_ops(psc)->step) {
     psc_ops(psc)->step(psc);
     return;
@@ -120,13 +127,33 @@ psc_step(struct psc *psc)
 
   // particle propagation n*dt -> (n+1.0)*dt
   psc_checks_continuity_before_particle_push(psc->checks, psc);
+#ifdef HAVE_ADIOS
+  if (adios_io) {
+    adios_start_calculation();
+  }
+#endif
   psc_push_particles_run(psc->push_particles, psc->particles, psc->flds);
+#ifdef HAVE_ADIOS
+  if (adios_io) {
+    adios_stop_calculation();
+  }
+#endif
     
   // field propagation (n+0.5)*dt -> (n+1.0)*dt
   psc_push_fields_step_b1(psc->push_fields, psc->flds);
 
   psc_bnd_particles_exchange(psc->bnd_particles, psc->particles);
+#ifdef HAVE_ADIOS
+  if (adios_io) {
+    adios_start_calculation();
+  }
+#endif
   psc_push_particles_run_b(psc->push_particles, psc->particles, psc->flds);
+#ifdef HAVE_ADIOS
+  if (adios_io) {
+    adios_stop_calculation();
+  }
+#endif
   
   psc_push_photons_run(psc->mphotons);
   psc_bnd_photons_exchange(psc->bnd_photons, psc->mphotons);
@@ -135,6 +162,11 @@ psc_step(struct psc *psc)
   // field propagation (n+0.5)*dt -> (n+1.0)*dt
   psc_push_fields_step_b2(psc->push_fields, psc->flds);
   psc_checks_continuity_after_particle_push(psc->checks, psc);
+#ifdef HAVE_ADIOS
+  if (adios_io) {
+    adios_end_iteration();
+  }
+#endif
 }
 
 extern void dynamicwindow_timestep();
