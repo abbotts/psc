@@ -66,7 +66,9 @@ psc_main(int *argc, char ***argv, struct psc_ops *type)
     ierr = adios_init_noxml(MPI_COMM_WORLD); AERR(ierr);
     // Having a fixed buffer size is probably a bad idea..
     // Can noxml adios use a percentage of free space?
-    ierr = adios_allocate_buffer(ADIOS_BUFFER_ALLOC_NOW, 250); AERR(ierr);
+    int buf_size;
+    psc_get_param_int(psc, "adios_buffer_size", &buf_size);
+    ierr = adios_allocate_buffer(ADIOS_BUFFER_ALLOC_NOW, buf_size); AERR(ierr);
 #else
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);

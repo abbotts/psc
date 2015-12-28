@@ -152,7 +152,8 @@ static struct param psc_descr[] = {
                     , VAR(prm.write_checkpoint_every_step), PARAM_INT(-1) },
   { "adios_checkpoint"
                     , VAR(prm.adios_checkpoint)   , PARAM_BOOL(false) },
-
+  { "adios_buffer_size"
+                    , VAR(prm.adios_buffer_size)   , PARAM_INT(100) },
   { "fields_base"   , VAR(prm.fields_base)        , PARAM_STRING("c") },
   { "particles_base", VAR(prm.particles_base)     , PARAM_STRING("c") },
   { "particles_base_flags"

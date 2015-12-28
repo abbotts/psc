@@ -114,6 +114,7 @@ struct psc_param {
   bool detailed_profiling; ///< output profiling info for each process separately
   double theta_xz; ///< rotate anisotropic maxwellian in x-z plane
   bool adios_checkpoint; ///< checkpoint particles using the adios library
+  int adios_buffer_size; ///< size of adios buffer (in MB)
 };
 
 /// coefficients needed for computations
