@@ -31,7 +31,12 @@ check_PROGRAMS = \
 	test_erfi \
 	test_wavelet \
 	tutorial_mrc_obj \
-	test_fdtd_amr
+	test_fdtd_amr 
+
+if HAVE_ADIOS
+check_PROGRAMS += \
+	test_adios_io
+endif HAVE_ADIOS
 
 tutorial_mrc_obj_SOURCES = tutorial_mrc_obj.c vector.c vector_double.c vector_float.c \
 	vector.h \
@@ -77,8 +82,12 @@ TESTS = \
 	test_mrc_f3_0.sh \
 	test_mrc_f3_1.sh \
 	test_mrc_f3_2.sh \
-	test_mrc_f3_2.sh \
-	test_mrc_ddc_1.sh
+	test_mrc_f3_2.sh 
+
+if HAVE_ADIOS
+TESTS += \
+	test_mrc_fld_io_adios.sh
+endif HAVE_ADIOS
 
 XFAIL_TESTS = \
 	test_mrc_fld_io_xdmf_serial.sh \

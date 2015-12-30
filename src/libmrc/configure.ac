@@ -120,6 +120,13 @@ AS_IF([test "$have_petsc" != "no"],
       [AC_DEFINE([HAVE_PETSC], [], [we have petsc library + headers])])
 AM_CONDITIONAL([HAVE_PETSC], [test "$have_petsc" != "no"])
 
+MRC_CHECK_ADIOS(1.9.0)
+CFLAGS="$ADIOS_CFLAGS $CFLAGS"
+LIBS="$ADIOS_LIBS $LIBS"
+AS_IF([test "$have_adios" != "no"],
+      [AC_DEFINE([HAVE_ADIOS], [], [we have adios library + headers])])
+AM_CONDITIONAL([HAVE_ADIOS], [test "$have_adios" != "no"])
+
 # check for Viscid (analysis / plotting python package) so that we
 # can mark some tests XFAIL
 # Get Viscid at https://github.com/KristoforMaynard/Viscid
@@ -176,6 +183,7 @@ AC_CONFIG_FILES([Makefile
 		 tests/test_mrc_fld_io_hdf5_serial.sh
 		 tests/test_mrc_fld_io_hdf5_parallel.sh
 		 tests/test_mrc_fld_io_ascii.sh
+		 tests/test_mrc_fld_io_adios.sh		 
 		 tests/test_mrc_m1_0.sh
 		 tests/test_mrc_m1_1.sh
 		 tests/test_mrc_m3_0.sh

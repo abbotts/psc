@@ -36,7 +36,7 @@ _mrc_adios_size_open(struct mrc_io *io, const char *mode)
   assert(strcmp(mode, "w") == 0);
 
   struct mrc_adios_size *ads = to_size(io);
-  group_size = 0;
+  ads->group_size = 0;
 }
 
 static void
@@ -50,7 +50,6 @@ _mrc_adios_size_attr(struct mrc_io *io, const char *path, int type,
 		const char *name, union param_u *pv)
 {
   struct mrc_adios_size *ads = to_size(io);
-  int ierr;
   
   switch (type) {
   case PT_SELECT:
@@ -108,11 +107,10 @@ _mrc_adios_size_fld(struct mrc_io *io, const char *path, struct mrc_fld *fld)
   struct mrc_adios_size *ads = to_size(io);
 
   // We write three ints to define nr_patches, nr_global_patches, and patch off
-  ads->group_size += sizeof(int) * 3
+  ads->group_size += sizeof(int) * 3;
 
   // The size of the bulk field that we're dumping
   ads->group_size += fld->_size_of_type * fld->_len;
-
 }
 
 static void
@@ -123,12 +121,12 @@ _mrc_adios_final_size(struct mrc_io *io, uint64_t *final_size)
 }
 
 static struct mrc_obj_method mrc_adios_size_methods[] = {
-  MRC_OBJ_METHOD("final_size",   mrc_adios_final_size),
+  MRC_OBJ_METHOD("final_size",   _mrc_adios_final_size),
   {}
 };
 
 
-struct mrc_io_ops mrc_io_adios_size = {
+struct mrc_io_ops mrc_io_adios_size_ops = {
   .name          = "adios_size",
   .size          = sizeof(struct mrc_adios_size),
   .methods       = mrc_adios_size_methods,
@@ -166,7 +164,7 @@ _mrc_adios_define_open(struct mrc_io *io, const char *mode)
   const char *tmethod, *outdir;
   mrc_io_get_param_string(io, "method", &tmethod);
   mrc_io_get_param_string(io, "outdir", &outdir);
-  ierr = adios_select_method(&adef->group_id, tmethod, "", outdir); AERR(ierr);
+  ierr = adios_select_method(adef->group_id, tmethod, "", outdir); AERR(ierr);
 }
 
 static void
@@ -188,6 +186,7 @@ _mrc_adios_define_attr(struct mrc_io *io, const char *path, int type,
   char *adname;
 
   asprintf(&adname, "%s/%s", path, name);
+  char *nrname;
 
   switch (type) {
   case PT_SELECT:
@@ -197,7 +196,6 @@ _mrc_adios_define_attr(struct mrc_io *io, const char *path, int type,
     break;
   case PT_BOOL: 
   case MRC_VAR_BOOL: {
-    int val = pv->u_bool;
     adios_define_var(gid, adname, "", adios_integer, "", "", "");
     break;
   }
@@ -214,7 +212,7 @@ _mrc_adios_define_attr(struct mrc_io *io, const char *path, int type,
     break;
 
   case PT_INT3:
-    adios_define_var(gid, adname, "", adios_int, "3", "", "");
+    adios_define_var(gid, adname, "", adios_integer, "3", "", "");
     break;
 
   case PT_FLOAT3:
@@ -225,7 +223,6 @@ _mrc_adios_define_attr(struct mrc_io *io, const char *path, int type,
     adios_define_var(gid, adname, "", adios_double, "3", "", "");
     break;
   case PT_INT_ARRAY:
-    char *nrname;
     asprintf(&nrname, "%s-nrvals", adname);
     adios_define_var(gid, nrname, "", adios_integer, "", "", "");
     adios_define_var(gid, adname, "", adios_integer, nrname, "", "");
@@ -258,22 +255,22 @@ _mrc_adios_define_fld(struct mrc_io *io, const char *path, struct mrc_fld *fld)
 
   char *dimnames = (char *) malloc(sizeof(*dimnames) * (strlen(adname) + 100));
 
-  const char *offstr, *dimstr, *gdimstr;
+  char *offstr, *dimstr, *gdimstr;
   // define vars for local/global patch numbers and offset
   sprintf(dimnames, "%s/nr_global_patches", adname);
   adios_define_var(gid, dimnames, "", adios_integer, "", "", "");
   gdimstr = (char *) malloc(sizeof(*gdimstr) * (strlen(dimnames) + 100));
-  strcopy(gdimstr, dimnames);
+  strcpy(gdimstr, dimnames);
 
   sprintf(dimnames, "%s/nr_local_patches", adname);
   adios_define_var(gid, dimnames, "", adios_integer, "", "", "");
   dimstr = (char *) malloc(sizeof(*dimstr) * (strlen(dimnames) + 100));
-  strcopy(dimstr, dimnames);
+  strcpy(dimstr, dimnames);
 
   sprintf(dimnames, "%s/patch_off", adname);
   adios_define_var(gid, dimnames, "", adios_integer, "", "", "");
   offstr = (char *) malloc(sizeof(*offstr) * (strlen(dimnames) + 100));
-  strcopy(offstr, dimnames);
+  strcpy(offstr, dimnames);
 
 
   // line up patches in file
@@ -283,7 +280,6 @@ _mrc_adios_define_fld(struct mrc_io *io, const char *path, struct mrc_fld *fld)
   // a little bit easier this way.
   int nr_spatial_dims = fld->_nr_spatial_dims;
   int nr_file_dims = nr_spatial_dims + 1;
-  const int *fld_dims = fld->_ghost_dims.vals;
 
 
   int fdims[nr_file_dims]; // 1 comp + 3d or 1d size of each patch;
@@ -334,15 +330,23 @@ _mrc_adios_define_fld(struct mrc_io *io, const char *path, struct mrc_fld *fld)
 }
 
 
-struct mrc_io_ops mrc_io_adios_define = {
-  .name          = "mrc_adios_define",
+struct mrc_io_ops mrc_io_adios_define_ops = {
+  .name          = "adios_define",
   .size          = sizeof(struct mrc_adios_define),
+  .param_descr   =  adios_define_descr,
   .open          = _mrc_adios_define_open,
   .close         = _mrc_adios_define_close,
   .write_attr    = _mrc_adios_define_attr,
   .write_fld     = _mrc_adios_define_fld,
 };
-#undef to_size
+#undef to_define
+
+struct mrc_adios_io {
+  int64_t adios_file;
+  uint64_t total_size; ///< the transport method for this group
+};
+
+#define to_adios(io) mrc_to_subobj(io, struct mrc_adios_io)
 
 
 
@@ -389,6 +393,7 @@ _mrc_adios_write_fld(struct mrc_io *io, const char *path, struct mrc_fld *fld)
   ierr = adios_write(fd_p, dimnames, (void *) &nr_local_patches);
 
   // ## AWRITE : patch_offset
+  struct mrc_patch_info info;
   mrc_domain_get_local_patch_info(fld->_domain, 0, &info);
   sprintf(dimnames, "%s/patch_off", adname);
   ierr = adios_write(fd_p, dimnames, (void *) &info.global_patch); AERR(ierr);
@@ -404,3 +409,4 @@ _mrc_adios_write_fld(struct mrc_io *io, const char *path, struct mrc_fld *fld)
 
 }
 
+#undef to_adios

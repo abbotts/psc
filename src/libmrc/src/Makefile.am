@@ -88,6 +88,11 @@ libmrc_la_SOURCES += \
 	mrc_ddc_mb.c
 endif HAVE_PETSC
 
+if HAVE_ADIOS
+libmrc_la_SOURCES += \
+	mrc_io_adios.c
+endif HAVE_ADIOS
+
 libmrctest_la_SOURCES = \
 	mrctest.c
 
