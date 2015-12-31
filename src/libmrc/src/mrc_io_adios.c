@@ -122,8 +122,18 @@ _mrc_adios_final_size(struct mrc_io *io, uint64_t *final_size)
   *final_size = ads->group_size;
 }
 
+// For things like PSC checkpointing that want to write things
+// that don't live in mrc objects
+static void
+_mrc_adios_add_to_size(struct mrc_io *io, uint64_t add_size)
+{
+  struct mrc_adios_size *ads = to_size(io);
+  ads->group_size += add_size;  
+}
+
 static struct mrc_obj_method mrc_adios_size_methods[] = {
   MRC_OBJ_METHOD("final_size",   _mrc_adios_final_size),
+  MRC_OBJ_METHOD("add_to_size",  _mrc_adios_add_to_size),  
   {}
 };
 
