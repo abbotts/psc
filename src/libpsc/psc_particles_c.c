@@ -5,6 +5,7 @@
 #include <mrc_io.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <string.h>
 
 // ======================================================================
 // psc_particles "c"
@@ -50,6 +51,8 @@ particles_c_realloc(struct psc_particles *prts, int new_n_part)
 #define H5_CHK(ierr) assert(ierr >= 0)
 #define CE assert(ierr == 0)
 
+// FIXME : adios is nested inside HDF5 at the moment, even though it 
+// doesn't need to be.
 #ifdef HAVE_ADIOS
 #include <psc_adios.h>
 
@@ -82,11 +85,11 @@ psc_particles_c_define_adios_vars(struct psc_particles *prts, const char *path, 
   adios_define_var(m_adios_group, varnames, "", adios_unsigned_integer, "","","");
 
 
-  sprintf(varnnames, "%s/n_part", path);
+  sprintf(varnames, "%s/n_part", path);
   adios_define_var(m_adios_group, varnames, "", adios_integer, "","","");
 
   char *vardata;
-  asprintf(&vardata, "%s/particles", path);
+  asprintf(&vardata, "%s/particles_c", path);
   strcat(varnames, ", 10");
 
   adios_define_var(m_adios_group, vardata, "", adios_double, varnames, "", "");
@@ -107,13 +110,13 @@ psc_particles_c_write_adios(struct psc_particles *prts, const char *path, int64_
   char *varnames = malloc(sizeof(*varnames) * (strlen(path) + 50));
 
   sprintf(varnames, "%s/p", path);
-  ierr = adios_write(fd_p, varnames, (void *) &prts->p);
+  ierr = adios_write(fd_p, varnames, (void *) &prts->p); AERR(ierr);
 
   sprintf(varnames, "%s/flags", path);
-  ierr = adios_write(fd_p, varnames, (void *) &prts->flags);
+  ierr = adios_write(fd_p, varnames, (void *) &prts->flags); AERR(ierr);
 
-  sprintf(varnnames, "%s/n_part", path);
-  ierr = adios_write(fd_p, varnames, (void *) &prts->n_part);
+  sprintf(varnames, "%s/n_part", path);
+  ierr = adios_write(fd_p, varnames, (void *) &prts->n_part); AERR(ierr);
 
   sprintf(varnames, "%s/particles_c", path);
   ierr = adios_write(fd_p, varnames, (void *) particles_c_get_one(prts, 0)); AERR(ierr);
@@ -123,7 +126,7 @@ psc_particles_c_write_adios(struct psc_particles *prts, const char *path, int64_
 
 // write the particles using adios
 static void
-psc_particles_c_read_adios(struct psc_particles *prts, const char *path, const ADIOS_FILE * afp)
+psc_particles_c_read_adios(struct psc_particles *prts, const char *path, ADIOS_FILE * afp)
 {
   int ierr;
 
@@ -142,18 +145,18 @@ psc_particles_c_read_adios(struct psc_particles *prts, const char *path, const A
   adios_free_varinfo(info);
 
   sprintf(varnames, "%s/flags", path);
-  ADIOS_VARINFO *info = adios_inq_var(afp, varnames); assert(info);
+  info = adios_inq_var(afp, varnames); assert(info);
   prts->flags = *(unsigned int *)info->value;
   adios_free_varinfo(info);
 
   sprintf(varnames, "%s/n_part", path);
-  ADIOS_VARINFO *info = adios_inq_var(afp, varnames); assert(info);
+  info = adios_inq_var(afp, varnames); assert(info);
   prts->n_part = *(int *)info->value;
   adios_free_varinfo(info);
 
   psc_particles_setup(prts);
 
-  ierr = adios_schedule_read(afp, NULL, vardata, 0, 1, 
+  ierr = adios_schedule_read(afp, NULL, varnames, 0, 1, 
                             (void *) particles_c_get_one(prts, 0)); AERR(ierr);
 
   ierr = adios_perform_reads(afp, 1); AERR(ierr);

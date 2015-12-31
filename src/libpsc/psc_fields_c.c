@@ -109,12 +109,170 @@ psc_fields_c_axpy_comp(struct psc_fields *y, int ym, double _a, struct psc_field
 #define H5_CHK(ierr) assert(ierr >= 0)
 #define CE assert(ierr == 0)
 
+// FIXME : adios is nested inside HDF5 at the moment, even though it 
+// doesn't need to be.
+#ifdef HAVE_ADIOS
+#include <psc_adios.h>
+
+// Define the adios group for particle output of this type
+// FIXME: this being hard-coded at the particle type level bothers me,
+// but that's a bigger problem with how the particle i/o works
+
+// Calculate this patches contribution to the ADIOS payload
+static uint64_t
+psc_fields_c_adios_size(struct psc_fields *fields)
+{
+  // sizeof(nparts) + nparts * 10 * sizeof(double)
+  uint64_t fldsize = sizeof(double) * fields->nr_comp;
+
+  for (int d = 0; d < 3; d++) {
+    fldsize *= fields->im[d];
+  }
+  return 8 * sizeof(int) + fldsize;
+}
+
+static void
+psc_fields_c_define_adios_vars(struct psc_fields *fields, const char *path, int64_t m_adios_group)
+{
+  
+  char *varnames = malloc(sizeof(*varnames) * (strlen(path) + 50));
+  sprintf(varnames, "%s/p", path);
+  adios_define_var(m_adios_group, varnames, "", adios_integer, "","","");
+
+  sprintf(varnames, "%s/ib", path);
+  adios_define_var(m_adios_group, varnames, "", adios_integer, "3","","");
+
+  // Because of our wacky backwards memory ordering we have to 
+  // allocate a bigass string to hold the 3 individualy written
+  // im variables + nr_comp
+  char *varcomp = malloc(sizeof(*varcomp) * 4*(strlen(path) + 10));
+
+  asprintf(&varcomp, "%s/nr_comp", path);
+  adios_define_var(m_adios_group, varcomp, "", adios_integer, "","","");
+
+  for (int d = 2; d >= 0; d--) {
+    sprintf(varnames, "%s/im[%d]", path, d);
+    adios_define_var(m_adios_group, varnames, "", adios_integer, "","","");
+    strcat(varcomp, ", ");
+    strcat(varcomp, varnames);
+  }
+
+  char *vardata;
+  asprintf(&vardata, "%s/fields_c", path);
+
+  adios_define_var(m_adios_group, vardata, "", adios_double, varcomp, "", "");
+
+  free(vardata);
+  free(varnames);
+  free(varcomp);
+}
+
+// write the particles using adios
+static void
+psc_fields_c_write_adios(struct psc_fields *fields, const char *path, int64_t fd_p)
+{
+  int ierr;
+  char *varnames = malloc(sizeof(*varnames) * (strlen(path) + 50));
+  sprintf(varnames, "%s/p", path);
+  ierr = adios_write(fd_p, varnames, (void *) &fields->p); AERR(ierr);
+
+  sprintf(varnames, "%s/ib", path);
+  ierr = adios_write(fd_p, varnames, (void *) fields->ib); AERR(ierr);
+
+  sprintf(varnames, "%s/nr_comp", path);
+  ierr = adios_write(fd_p, varnames, (void *) &fields->nr_comp); AERR(ierr);
+
+  for (int d = 2; d >= 0; d--) {
+    sprintf(varnames, "%s/im[%d]", path, d);
+    ierr = adios_write(fd_p, varnames, (void *) &fields->im[d]); AERR(ierr);
+  }
+
+  sprintf(varnames, "%s/fields_c", path);
+  ierr = adios_write(fd_p, varnames, (void *) fields->data); AERR(ierr);
+
+  free(varnames);
+
+}
+
+// write the particles using adios
+static void
+psc_fields_c_read_adios(struct psc_fields *fields, const char *path, ADIOS_FILE * afp)
+{
+  int ierr;
+
+  char *varnames = malloc(sizeof(*varnames) * (strlen(path) + 50));
+
+  sprintf(varnames, "%s/p", path);
+  ADIOS_VARINFO *info = adios_inq_var(afp, varnames); assert(info);
+  fields->p = *(int *)info->value;
+  adios_free_varinfo(info);
+
+  int ib[3];
+  sprintf(varnames, "%s/ib", path);
+  ierr = adios_schedule_read(afp, NULL, varnames, 0, 1, (void *) ib); AERR(ierr);
+  ierr = adios_perform_reads(afp, 1); AERR(ierr);
+
+  sprintf(varnames, "%s/nr_comp", path);
+  info = adios_inq_var(afp, varnames); assert(info);
+  assert(fields->nr_comp == *(int *)info->value);
+  adios_free_varinfo(info);
+
+
+  for (int d = 2; d >= 0; d--) {
+    sprintf(varnames, "%s/im[%d]", path, d);
+    info = adios_inq_var(afp, varnames); assert(info);
+    assert(fields->im[d] == *(int *)info->value);
+    adios_free_varinfo(info);
+    assert(ib[d] == fields->ib[d]);
+  }
+
+  psc_fields_setup(fields);
+
+  sprintf(varnames, "%s/fields_c", path);
+
+  ierr = adios_schedule_read(afp, NULL, varnames, 0, 1, 
+                            (void *) fields->data); AERR(ierr);
+
+  ierr = adios_perform_reads(afp, 1); AERR(ierr);
+
+  free(varnames);
+
+}
+
+#endif 
+
 // ----------------------------------------------------------------------
 // psc_fields_c_write
 
 static void
 psc_fields_c_write(struct psc_fields *flds, struct mrc_io *io)
 {
+  const char *path = mrc_io_obj_path(io, flds);
+#ifdef HAVE_ADIOS
+  if (strcmp(mrc_io_type(io),"adios_define") == 0) {
+    int64_t gid;
+    a_get_gid_t get_gid = (a_get_gid_t) mrc_io_get_method(io, "get_group_id");
+    get_gid(io, &gid);
+    psc_fields_c_define_adios_vars(flds, path, gid);
+    return;
+  }
+
+  if (strcmp(mrc_io_type(io),"adios_size") == 0) {
+    uint64_t patch_size = psc_fields_c_adios_size(flds);
+    a_add_to_size_t add_size = (a_add_to_size_t) mrc_io_get_method(io, "add_to_size");
+    add_size(io, patch_size);
+    return;
+  }
+
+  if (strcmp(mrc_io_type(io),"adios") == 0) {
+    int64_t fd_p;
+    a_get_write_t get_write_file = (a_get_write_t) mrc_io_get_method(io, "get_write_file");
+    get_write_file(io, &fd_p);
+    psc_fields_c_write_adios(flds, path, fd_p);
+    return;
+  }
+#endif
+
   int ierr;
   long h5_file;
   mrc_io_get_h5_file(io, &h5_file);
@@ -135,6 +293,17 @@ psc_fields_c_write(struct psc_fields *flds, struct mrc_io *io)
 static void
 psc_fields_c_read(struct psc_fields *flds, struct mrc_io *io)
 {
+#ifdef HAVE_ADIOS
+  const char *path = mrc_io_obj_path(io, flds);
+  if (strcmp(mrc_io_type(io),"adios") == 0) {
+    ADIOS_FILE *rfp;
+    a_get_read_t get_read_file = (a_get_read_t) mrc_io_get_method(io, "get_read_file");
+    get_read_file(io, &rfp);
+    psc_fields_c_read_adios(flds, path, rfp);
+    return;
+  }
+#endif
+
   int ierr;
   long h5_file;
   mrc_io_get_h5_file(io, &h5_file);
