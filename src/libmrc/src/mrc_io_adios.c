@@ -246,7 +246,7 @@ _mrc_adios_define_attr(struct mrc_io *io, const char *path, int type,
   case PT_PTR:
     break;
   default:
-    mpi_printf(mrc_io_comm(io), "mrc_io_hdf5_parallel: not writing attr '%s' (type %d)\n",
+    mpi_printf(mrc_io_comm(io), "mrc_io_adois: not writing attr '%s' (type %d)\n",
       adname, type);
     assert(0);
   }
@@ -344,11 +344,22 @@ _mrc_adios_define_fld(struct mrc_io *io, const char *path, struct mrc_fld *fld)
   free(dimstr);
 
 }
+static void
+_mrc_adios_get_group_id(struct mrc_io *io, int64_t *gid)
+{
+  struct mrc_adios_define *aio = to_define(io);
+  *gid = aio->group_id;
+}
 
+static struct mrc_obj_method mrc_adios_define_methods[] = {
+  MRC_OBJ_METHOD("get_group_id",   _mrc_adios_get_group_id),    
+  {}
+};
 
 struct mrc_io_ops mrc_io_adios_define_ops = {
   .name          = "adios_define",
   .size          = sizeof(struct mrc_adios_define),
+  .methods       = mrc_adios_define_methods,
   .param_descr   =  adios_define_descr,
   .open          = _mrc_adios_define_open,
   .close         = _mrc_adios_define_close,
@@ -680,8 +691,24 @@ _mrc_adios_set_size(struct mrc_io *io, uint64_t group_size)
   aio->group_size = group_size;
 }
 
+static void
+_mrc_adios_get_read_file(struct mrc_io *io, ADIOS_FILE **rfp)
+{
+  struct mrc_adios_io *aio = to_adios(io);
+  *rfp = aio->read_file;
+}
+
+static void
+_mrc_adios_get_write_file(struct mrc_io *io, int64_t *wfp)
+{
+  struct mrc_adios_io *aio = to_adios(io);
+  *wfp = aio->write_file;
+}
+
 static struct mrc_obj_method mrc_adios_methods[] = {
   MRC_OBJ_METHOD("set_group_size",   _mrc_adios_set_size),
+  MRC_OBJ_METHOD("get_read_file",    _mrc_adios_get_read_file),
+  MRC_OBJ_METHOD("get_write_file",   _mrc_adios_get_write_file),    
   {}
 };
 
