@@ -456,7 +456,7 @@ _mrc_adios_write_attr(struct mrc_io *io, const char *path, int type,
   case PT_INT_ARRAY:
     asprintf(&nrname, "%s-nrvals", adname);
     ierr = adios_write(fd_p, nrname, &pv->u_int_array.nr_vals); AERR(ierr);
-    ierr = adios_write(fd_p, adname, &pv->u_int_array.vals); AERR(ierr);
+    ierr = adios_write(fd_p, adname, pv->u_int_array.vals); AERR(ierr);
     free(nrname);
     break;
   case PT_PTR:
@@ -533,8 +533,9 @@ _mrc_adios_read_attr(struct mrc_io *io, const char *path, int type,
     asprintf(&nrname, "%s-nrvals", adname);
     ierr = adios_schedule_read(fd_p, select, nrname, 0, 1, &pv->u_int_array.nr_vals); AERR(ierr);
     ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
+    assert(pv->u_int_array.nr_vals > 0);
     pv->u_int_array.vals = calloc(pv->u_int_array.nr_vals, sizeof(int));
-    ierr = adios_schedule_read(fd_p, select, adname, 0, 1, (void *) &pv->u_int_array.vals); AERR(ierr);
+    ierr = adios_schedule_read(fd_p, select, adname, 0, 1, pv->u_int_array.vals); AERR(ierr);
     ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
     free(nrname);
     break;
@@ -608,6 +609,61 @@ _mrc_adios_write_fld(struct mrc_io *io, const char *path, struct mrc_fld *fld)
 }
 
 static void
+_mrc_adios_read_fld(struct mrc_io *io, const char *path, struct mrc_fld *fld)
+{
+
+  struct mrc_adios_io *aio = to_adios(io);
+  ADIOS_FILE *fd_p = aio->read_file;
+  ADIOS_SELECTION *select = aio->selection;
+
+  int ierr;
+
+  const char *name = mrc_fld_name(fld);
+  char *adname;
+
+  asprintf(&adname, "%s/%s", path, name);
+
+  char *dimnames = (char *) malloc(sizeof(*dimnames) * (strlen(adname) + 100));
+
+  // FIXME : We don't actually need to bring these variables in, but they're
+  // a check that we're reading back with the same patch layout we used to write.
+  // This should be forced by using the writeblock selection. If we want to support
+  // a different read layout (i.e. selection) these checks should be removed and instead 
+  // we should define a bit of the array to read using the mrc_fld/domain patch layout
+  // and adios_selection_boundingbox
+
+  int nr_patches, nr_local_patches, patch_off;
+
+
+  sprintf(dimnames, "%s/nr_global_patches", adname);
+  ierr = adios_schedule_read(fd_p, select, dimnames, 0, 1, (void *) &nr_patches); AERR(ierr);
+  sprintf(dimnames, "%s/nr_local_patches", adname);
+  ierr = adios_schedule_read(fd_p, select, dimnames, 0, 1, (void *) &nr_local_patches); AERR(ierr);
+  sprintf(dimnames, "%s/patch_off", adname);
+  ierr = adios_schedule_read(fd_p, select, dimnames, 0, 1, (void *) &patch_off); AERR(ierr);
+  ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
+
+
+  assert(nr_local_patches == mrc_fld_nr_patches(fld));
+
+  int def_nr_patches;
+  mrc_domain_get_nr_global_patches(fld->_domain, &def_nr_patches);
+  assert(nr_patches == def_nr_patches);
+
+  struct mrc_patch_info info;
+  mrc_domain_get_local_patch_info(fld->_domain, 0, &info);
+  assert(patch_off == info.global_patch);
+
+  sprintf(dimnames, "%s/data", adname);
+  ierr = adios_schedule_read(fd_p, select, dimnames, 0, 1, fld->_arr); AERR(ierr);
+  ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
+
+  free(adname);
+  free(dimnames);
+
+}
+
+static void
 _mrc_adios_set_size(struct mrc_io *io, uint64_t group_size)
 {
   struct mrc_adios_io *aio = to_adios(io);
@@ -622,6 +678,7 @@ static struct mrc_obj_method mrc_adios_methods[] = {
 
 struct mrc_io_ops mrc_io_adios_ops = {
   .name          = "adios",
+  .parallel      = false, // This is kind of a lie, but it should function like serial io
   .size          = sizeof(struct mrc_adios_io),
   .methods       = mrc_adios_methods,
   .open          = _mrc_adios_open,
@@ -629,6 +686,7 @@ struct mrc_io_ops mrc_io_adios_ops = {
   .write_attr    = _mrc_adios_write_attr,
   .read_attr     = _mrc_adios_read_attr,  
   .write_fld     = _mrc_adios_write_fld,
+  .read_fld      = _mrc_adios_read_fld,
 };
 
 #undef to_adios
