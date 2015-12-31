@@ -15,77 +15,6 @@
 #include "psc_adios.h"
 #include <adios_read.h>
 
-// Adios particle reads assume that the metadata has already been 
-// pulled from the checkpoint hdf5 files, and the psc object has been
-// setup INCULDING memory for all the particles.
-
-static void
-psc_adios_read(struct psc *psc, int n)
-{
-  int ierr;
-  char filename[256];
-  sprintf(filename, "checkpoint_particles.%08d.bp", n); // adios particle file
-  // Open for reading.
-  // FIXME: Is the basic read the most efficient method to use here, or should
-  // we use an aggregate method?
-  ADIOS_FILE *afp = adios_read_open_file(filename, ADIOS_READ_METHOD_BP, psc_comm(psc));
-  assert(afp);
-
-  // Issue the write calls for each patch
-  psc_foreach_patch(psc, p) {
-    struct psc_particles *prts = psc_mparticles_get_patch(psc->particles, p);
-    psc_particles_read_adios(prts, psc->mrc_domain, afp);
-  }
-
-  ierr = adios_perform_reads(afp, 1); AERR(ierr); // 1 for blocking reads
-  ierr = adios_read_close(afp); AERR(ierr);
-
-}
-
-static bool
-psc_adios_define(struct psc *psc)
-{
-  int ierr;
-  int64_t m_adios_group;
-  
-  // Declare the particles group, without any statistics
-  ierr = adios_declare_group(&m_adios_group, "mparticles", "", adios_flag_no); AERR(ierr);
-  ierr = adios_select_method(m_adios_group, "MPI", "", ""); AERR(ierr);
-
-  psc_foreach_patch(psc, p) {
-    struct psc_particles *prts = psc_mparticles_get_patch(psc->particles, p);
-    psc_particles_define_vars_adios(prts, psc->mrc_domain, m_adios_group);
-  }
-  return true;
-}
-
-static void
-psc_adios_write(struct psc *psc)
-{
-  int ierr;
-  // the adios group for writing (collective call)
-  char filename[256];
-  sprintf(filename, "checkpoint_particles.%08d.bp", psc->timestep); // adios particle file
-  int64_t fd_p; // adios file pointer
-  ierr = adios_open(&fd_p, "mparticles", filename, "w", psc_comm(psc)); AERR(ierr);
-
-  // calculate and set the payload size
-  uint64_t group_size = 0;
-  psc_foreach_patch(psc, p) {
-    struct psc_particles *prts = psc_mparticles_get_patch(psc->particles, p);
-    group_size += psc_particles_calc_size_adios(prts);
-  }
-  uint64_t total_size;
-  ierr = adios_group_size(fd_p, group_size, &total_size); AERR(ierr);
-
-  // Issue the write calls for each patch
-  psc_foreach_patch(psc, p) {
-    struct psc_particles *prts = psc_mparticles_get_patch(psc->particles, p);
-    psc_particles_write_adios(prts, psc->mrc_domain, fd_p);
-  }
-
-  ierr = adios_close(fd_p); AERR(ierr);
-}
 #endif
 
 
@@ -108,19 +37,6 @@ psc_read_checkpoint(MPI_Comm comm, int n)
   struct psc *psc = mrc_io_read_path(io, "checkpoint", "psc", psc);
   mrc_io_close(io);
   mrc_io_destroy(io);
-
-  if (psc->prm.adios_checkpoint) {
-#ifdef HAVE_ADIOS
-    int ierr;
-    ierr = adios_read_init_method(ADIOS_READ_METHOD_BP, psc_comm(psc), 
-            "verbose=4"); AERR(ierr); // Debug for now
-    psc_adios_read(psc, n);
-    ierr = adios_read_finalize_method(ADIOS_READ_METHOD_BP); AERR(ierr);
-#else
-  fprintf(stderr, "Checkpoint was written with ADIOS, but this version of PSC wasn't built with ADIOS support!\n");
-  abort();
-#endif    
-  }
 
   ppsc = psc;
   return psc;
@@ -147,7 +63,7 @@ psc_write_checkpoint(struct psc *psc)
     }
   }
   MPI_Barrier(psc_comm(psc));
-
+  static bool adios_defined;
   struct mrc_io *io = mrc_io_create(psc_comm(psc));
   mrc_io_set_type(io, "xdmf_serial");
   mrc_io_set_name(io, "checkpoint");
@@ -156,25 +72,9 @@ psc_write_checkpoint(struct psc *psc)
   mrc_io_set_from_options(io);
   mrc_io_setup(io);
   mrc_io_open(io, "w", psc->timestep, psc->timestep * psc->dt);
-#ifdef HAVE_ADIOS
-  mrc_io_dict_add_int(io, "adios_particles", (int ) psc->prm.adios_checkpoint);
-#endif
   mrc_io_write_path(io, "checkpoint", "psc", psc);
   mrc_io_close(io);
   mrc_io_destroy(io);
-
-#ifdef HAVE_ADIOS
-
-  static bool adios_defined;
-
-  if (psc->prm.adios_checkpoint) {
-    if (!adios_defined) {
-      adios_defined = psc_adios_define(psc);
-    }
-    psc_adios_write(psc);
-  }
-
-#endif
 
 }
 

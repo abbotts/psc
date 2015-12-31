@@ -16,42 +16,6 @@ psc_particles_reorder(struct psc_particles *prts)
   }
 }
 
-// ======================================================================
-// ADIOS checkpointing calls
-#ifdef HAVE_ADIOS
-void
-psc_particles_define_vars_adios(struct psc_particles *prts, struct mrc_domain *domain, int64_t m_adios_group)
-{
-  if (psc_particles_ops(prts)->define_adios) {
-    psc_particles_ops(prts)->define_adios(prts, domain, m_adios_group);
-  }
-}
-
-uint64_t 
-psc_particles_calc_size_adios(struct psc_particles *prts)
-{
-  if (psc_particles_ops(prts)->calc_size_adios) {
-    return psc_particles_ops(prts)->calc_size_adios(prts);
-  }
-  return 0;
-}
-
-void
-psc_particles_write_adios(struct psc_particles *prts, struct mrc_domain *domain, int64_t fd_p)
-{
-  if (psc_particles_ops(prts)->write_adios) {
-    psc_particles_ops(prts)->write_adios(prts, domain, fd_p);
-  }
-}
-
-void
-psc_particles_read_adios(struct psc_particles *prts, struct mrc_domain *domain, const ADIOS_FILE *afp)
-{
-  if (psc_particles_ops(prts)->read_adios) {
-    psc_particles_ops(prts)->read_adios(prts, domain, afp);
-  }
-}
-#endif
 
 // ======================================================================
 // psc_particles_get_as

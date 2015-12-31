@@ -18,12 +18,6 @@ struct psc_particles {
 struct psc_particles_ops {
   MRC_SUBCLASS_OPS(struct psc_particles);
   void (*reorder)(struct psc_particles *prts);
-#ifdef HAVE_ADIOS
-  void (*define_adios)(struct psc_particles *prts, struct mrc_domain *domain, int64_t m_adios_group);
-  uint64_t (*calc_size_adios)(struct psc_particles *prts);
-  void (*write_adios)(struct psc_particles *prts, struct mrc_domain *domain, int64_t fd_p);
-  void (*read_adios)(struct psc_particles *prts, struct mrc_domain *domain, const ADIOS_FILE * afp);
-#endif
 };
 
 #define psc_particles_ops(prts) ((struct psc_particles_ops *) ((prts)->obj.ops))
