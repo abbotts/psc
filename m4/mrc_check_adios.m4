@@ -1,8 +1,8 @@
-# PSC_CHECK_ADIOS
+# MRC_CHECK_ADIOS
 # --------------------------------------
 # checks for ADIOS and sets ADIOS_CFLAGS, ADIOS_LIBS
 
-AC_DEFUN([PSC_CHECK_ADIOS],
+AC_DEFUN([MRC_CHECK_ADIOS],
   [
   AC_ARG_WITH(
     [adios],
