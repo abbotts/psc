@@ -31,7 +31,7 @@ GROUP "/" {
       }
       ATTRIBUTE "domain" {
          DATATYPE  H5T_STRING {
-            STRSIZE 25;
+            STRSIZE 30;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -142,7 +142,7 @@ GROUP "/" {
       }
       ATTRIBUTE "vec" {
          DATATYPE  H5T_STRING {
-            STRSIZE 22;
+            STRSIZE 27;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -206,7 +206,7 @@ GROUP "/" {
       }
       ATTRIBUTE "domain" {
          DATATYPE  H5T_STRING {
-            STRSIZE 25;
+            STRSIZE 30;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -317,7 +317,7 @@ GROUP "/" {
       }
       ATTRIBUTE "vec" {
          DATATYPE  H5T_STRING {
-            STRSIZE 22;
+            STRSIZE 27;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -381,7 +381,7 @@ GROUP "/" {
       }
       ATTRIBUTE "domain" {
          DATATYPE  H5T_STRING {
-            STRSIZE 25;
+            STRSIZE 30;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -492,7 +492,7 @@ GROUP "/" {
       }
       ATTRIBUTE "vec" {
          DATATYPE  H5T_STRING {
-            STRSIZE 22;
+            STRSIZE 27;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -530,7 +530,7 @@ GROUP "/" {
    GROUP "crds_gen_x-uid" {
       ATTRIBUTE "crds" {
          DATATYPE  H5T_STRING {
-            STRSIZE 23;
+            STRSIZE 28;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -622,7 +622,7 @@ GROUP "/" {
    GROUP "crds_gen_y-uid" {
       ATTRIBUTE "crds" {
          DATATYPE  H5T_STRING {
-            STRSIZE 23;
+            STRSIZE 28;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -714,7 +714,7 @@ GROUP "/" {
    GROUP "crds_gen_z-uid" {
       ATTRIBUTE "crds" {
          DATATYPE  H5T_STRING {
-            STRSIZE 23;
+            STRSIZE 28;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -832,7 +832,7 @@ GROUP "/" {
       }
       ATTRIBUTE "domain" {
          DATATYPE  H5T_STRING {
-            STRSIZE 25;
+            STRSIZE 30;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -936,7 +936,7 @@ GROUP "/" {
       }
       ATTRIBUTE "vec" {
          DATATYPE  H5T_STRING {
-            STRSIZE 22;
+            STRSIZE 27;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -976,7 +976,7 @@ GROUP "/" {
       }
       ATTRIBUTE "domain" {
          DATATYPE  H5T_STRING {
-            STRSIZE 25;
+            STRSIZE 30;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -1080,7 +1080,7 @@ GROUP "/" {
       }
       ATTRIBUTE "vec" {
          DATATYPE  H5T_STRING {
-            STRSIZE 22;
+            STRSIZE 27;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -1120,7 +1120,7 @@ GROUP "/" {
       }
       ATTRIBUTE "domain" {
          DATATYPE  H5T_STRING {
-            STRSIZE 25;
+            STRSIZE 30;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -1224,7 +1224,7 @@ GROUP "/" {
       }
       ATTRIBUTE "vec" {
          DATATYPE  H5T_STRING {
-            STRSIZE 22;
+            STRSIZE 27;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -1238,7 +1238,7 @@ GROUP "/" {
    GROUP "m1" {
       ATTRIBUTE "m1" {
          DATATYPE  H5T_STRING {
-            STRSIZE 22;
+            STRSIZE 27;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -1252,7 +1252,7 @@ GROUP "/" {
    GROUP "mrc_crds-uid" {
       ATTRIBUTE "crd[0]" {
          DATATYPE  H5T_STRING {
-            STRSIZE 21;
+            STRSIZE 26;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -1264,7 +1264,7 @@ GROUP "/" {
       }
       ATTRIBUTE "crd[1]" {
          DATATYPE  H5T_STRING {
-            STRSIZE 21;
+            STRSIZE 26;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -1276,7 +1276,7 @@ GROUP "/" {
       }
       ATTRIBUTE "crd[2]" {
          DATATYPE  H5T_STRING {
-            STRSIZE 21;
+            STRSIZE 26;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -1288,7 +1288,7 @@ GROUP "/" {
       }
       ATTRIBUTE "crds_gen_x" {
          DATATYPE  H5T_STRING {
-            STRSIZE 25;
+            STRSIZE 30;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -1300,7 +1300,7 @@ GROUP "/" {
       }
       ATTRIBUTE "crds_gen_y" {
          DATATYPE  H5T_STRING {
-            STRSIZE 25;
+            STRSIZE 30;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -1312,7 +1312,7 @@ GROUP "/" {
       }
       ATTRIBUTE "crds_gen_z" {
          DATATYPE  H5T_STRING {
-            STRSIZE 25;
+            STRSIZE 30;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -1324,7 +1324,7 @@ GROUP "/" {
       }
       ATTRIBUTE "dcrd[0]" {
          DATATYPE  H5T_STRING {
-            STRSIZE 22;
+            STRSIZE 27;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -1336,7 +1336,7 @@ GROUP "/" {
       }
       ATTRIBUTE "dcrd[1]" {
          DATATYPE  H5T_STRING {
-            STRSIZE 22;
+            STRSIZE 27;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -1348,7 +1348,7 @@ GROUP "/" {
       }
       ATTRIBUTE "dcrd[2]" {
          DATATYPE  H5T_STRING {
-            STRSIZE 22;
+            STRSIZE 27;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -1360,7 +1360,7 @@ GROUP "/" {
       }
       ATTRIBUTE "domain" {
          DATATYPE  H5T_STRING {
-            STRSIZE 25;
+            STRSIZE 30;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -1438,7 +1438,7 @@ GROUP "/" {
    GROUP "mrc_ddc-uid" {
       ATTRIBUTE "domain" {
          DATATYPE  H5T_STRING {
-            STRSIZE 25;
+            STRSIZE 30;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -1537,7 +1537,7 @@ GROUP "/" {
       }
       ATTRIBUTE "crds" {
          DATATYPE  H5T_STRING {
-            STRSIZE 23;
+            STRSIZE 28;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -1556,7 +1556,7 @@ GROUP "/" {
       }
       ATTRIBUTE "ddc" {
          DATATYPE  H5T_STRING {
-            STRSIZE 22;
+            STRSIZE 27;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -1642,15 +1642,6 @@ GROUP "/" {
          DATASPACE  SIMPLE { ( 1 ) / ( 1 ) }
          DATA {
          (0): 1
-         }
-      }
-      GROUP "rank_0" {
-         ATTRIBUTE "nr_patches" {
-            DATATYPE  H5T_STD_I32LE
-            DATASPACE  SIMPLE { ( 1 ) / ( 1 ) }
-            DATA {
-            (0): 1
-            }
          }
       }
    }
@@ -1748,7 +1739,7 @@ GROUP "/" {
       }
       ATTRIBUTE "domain" {
          DATATYPE  H5T_STRING {
-            STRSIZE 25;
+            STRSIZE 30;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;
@@ -1859,7 +1850,7 @@ GROUP "/" {
       }
       ATTRIBUTE "vec" {
          DATATYPE  H5T_STRING {
-            STRSIZE 22;
+            STRSIZE 27;
             STRPAD H5T_STR_NULLTERM;
             CSET H5T_CSET_ASCII;
             CTYPE H5T_C_S1;

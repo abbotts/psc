@@ -370,23 +370,11 @@ mrc_domain_multi_get_level_idx3_patch_info(struct mrc_domain *domain, int level,
 static void
 mrc_domain_multi_write(struct mrc_domain *domain, struct mrc_io *io)
 {
-  struct mrc_domain_multi *multi = mrc_domain_multi(domain);
 
   int nr_global_patches;
   mrc_domain_multi_get_nr_global_patches(domain, &nr_global_patches);
   mrc_io_write_int(io, domain, "nr_global_patches", nr_global_patches);
 
-  struct mrc_io_ops *io_ops = (struct mrc_io_ops *) io->obj.ops;
-  if (io_ops->parallel) {
-    return;
-  }
-
-  int mpi_rank;
-  MPI_Comm_rank(mrc_domain_comm(domain), &mpi_rank);
-
-  char path[strlen(mrc_io_obj_path(io, domain)) + 10];
-  sprintf(path, "%s/rank_%d", mrc_io_obj_path(io, domain), mpi_rank);
-  mrc_io_write_attr_int(io, path, "nr_patches", multi->nr_patches);
 
 #if 0
   int mpi_size;
@@ -424,26 +412,16 @@ mrc_domain_multi_write(struct mrc_domain *domain, struct mrc_io *io)
 static void
 mrc_domain_multi_read(struct mrc_domain *domain, struct mrc_io *io)
 {
-  struct mrc_domain_multi *multi = mrc_domain_multi(domain);
-
+   struct mrc_domain_multi *multi = mrc_domain_multi(domain);
   // This isn't a collective value, so we better
   // don't take what's been read from the file
-  int mpi_rank, mpi_size;
-  MPI_Comm_rank(mrc_domain_comm(domain), &mpi_rank);
-  MPI_Comm_size(mrc_domain_comm(domain), &mpi_size);
 
   struct mrc_io_ops *io_ops = (struct mrc_io_ops *) io->obj.ops;
 
-  // FIXME: With the addition of **do_setup() below it may no longer
-  // be necessary to have this read/write of local patch number
-  // for non-parallel writers, as the structure will be regenerated
-  // anyway.
-  if(!io_ops->parallel) {
-    const char *path = mrc_io_obj_path(io, domain);
-    char path2[strlen(path) + 20];
-    sprintf(path2, "%s/rank_%d", path, mpi_rank);
-    mrc_io_read_attr_int(io, path2, "nr_patches", &multi->nr_patches);
-  } else {
+  // If the io type is "parallel" the value of nr_patches is (potentially)
+  // clobbered in the file, so we should just force regeneration 
+  // of the patch structure.
+  if(io_ops->parallel) {
     multi->nr_patches = -1;
   }
 
