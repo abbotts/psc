@@ -75,7 +75,7 @@ extern struct mrc_io_ops mrc_io_hdf5_serial_ops;
 extern struct mrc_io_ops mrc_io_combined_ops;
 extern struct mrc_io_ops mrc_io_adios_size_ops;
 extern struct mrc_io_ops mrc_io_adios_define_ops;
-extern struct mrc_io_ops mrc_io_adios_write_ops;
+extern struct mrc_io_ops mrc_io_adios_ops;
 
 #endif
 

@@ -151,6 +151,7 @@ main(int argc, char **argv)
 
   int ierr;
   ierr = adios_init_noxml(MPI_COMM_WORLD); assert(ierr==0);
+  ierr = adios_allocate_buffer(ADIOS_BUFFER_ALLOC_NOW, 100); assert(ierr==0);
 
   static int adios_group_defined;
 
@@ -191,6 +192,7 @@ main(int argc, char **argv)
 
   struct mrc_io *io = mrc_io_create(mrc_fld_comm(fld));
   mrc_io_set_type(io, "adios");
+  mrc_io_set_param_string(io, "outdir", "adios_test");
   mrc_io_setup(io);
   //mrc_io_view(io);
 
