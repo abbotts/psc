@@ -195,9 +195,9 @@ _mrc_adios_define_attr(struct mrc_io *io, const char *path, int type,
   int64_t gid = adef->group_id;
 
   // Use path/name for adios name, and leave path blank.
-  char *adname;
-
-  asprintf(&adname, "%s/%s", path, name);
+  char *adname = malloc(sizeof(*adname) * (strlen(path) + strlen(name) + 5));
+  assert(adname);
+  sprintf(adname, "%s/%s", path, name);
   char *nrname;
 
   switch (type) {
@@ -220,7 +220,9 @@ _mrc_adios_define_attr(struct mrc_io *io, const char *path, int type,
     adios_define_var(gid, adname, "", adios_double, "", "", "");
     break;
   case PT_STRING:
-    asprintf(&nrname, "%s-sz", adname);
+    nrname = malloc(sizeof(*nrname) * (strlen(adname) + 10));
+    assert(nrname);
+    sprintf(nrname, "%s-sz", adname);
     adios_define_var(gid, nrname, "", adios_integer, "", "", "");
     adios_define_var(gid, adname, "", adios_string, "", "", "");
     free(nrname);
@@ -238,7 +240,9 @@ _mrc_adios_define_attr(struct mrc_io *io, const char *path, int type,
     adios_define_var(gid, adname, "", adios_double, "3", "", "");
     break;
   case PT_INT_ARRAY:
-    asprintf(&nrname, "%s-nrvals", adname);
+    nrname = malloc(sizeof(*nrname) * (strlen(adname) + 10));
+    assert(nrname);
+    sprintf(nrname, "%s-nrvals", adname);
     adios_define_var(gid, nrname, "", adios_integer, "", "", "");
     adios_define_var(gid, adname, "", adios_integer, nrname, "", "");
     free(nrname);
@@ -265,9 +269,9 @@ _mrc_adios_define_fld(struct mrc_io *io, const char *path, struct mrc_fld *fld)
   // define variables for the ghost_dims
 
   const char *name = mrc_fld_name(fld);
-  char *adname;
+  char *adname = malloc(sizeof(*adname) * (strlen(path) + strlen(name) + 5));
 
-  asprintf(&adname, "%s/%s", path, name);
+  sprintf(adname, "%s/%s", path, name);
 
   char *dimnames = (char *) malloc(sizeof(*dimnames) * (strlen(adname) + 100));
 
@@ -445,9 +449,10 @@ _mrc_adios_write_attr(struct mrc_io *io, const char *path, int type,
   int64_t fd_p = aio->write_file;
 
   // Use path/name for adios name, and leave path blank.
-  char *adname;
+  char *adname = malloc(sizeof(*adname) * (strlen(path) + strlen(name) + 5));
+  assert(adname);
+  sprintf(adname, "%s/%s", path, name);
 
-  asprintf(&adname, "%s/%s", path, name);
   char *nrname;
   int ierr;
 
@@ -467,7 +472,9 @@ _mrc_adios_write_attr(struct mrc_io *io, const char *path, int type,
     ierr = adios_write(fd_p, adname, pv); AERR(ierr);
     break;
   case PT_STRING:
-    asprintf(&nrname, "%s-sz", adname);
+    nrname = malloc(sizeof(*nrname) * (strlen(adname) + 10));
+    assert(nrname);
+    sprintf(nrname, "%s-sz", adname);
     const char *wstring = pv->u_string ? pv->u_string : "(NULL)";
     int size = strlen(wstring);
     ierr = adios_write(fd_p, nrname, &size); AERR(ierr);
@@ -475,7 +482,9 @@ _mrc_adios_write_attr(struct mrc_io *io, const char *path, int type,
     free(nrname);
     break;
   case PT_INT_ARRAY:
-    asprintf(&nrname, "%s-nrvals", adname);
+    nrname = malloc(sizeof(*nrname) * (strlen(adname) + 10));
+    assert(nrname);
+    sprintf(nrname, "%s-nrvals", adname);
     ierr = adios_write(fd_p, nrname, &pv->u_int_array.nr_vals); AERR(ierr);
     ierr = adios_write(fd_p, adname, pv->u_int_array.vals); AERR(ierr);
     free(nrname);
@@ -529,9 +538,10 @@ _mrc_adios_read_attr(struct mrc_io *io, const char *path, int type,
   ADIOS_SELECTION *select = aio->selection;
   assert(select);
   // Use path/name for adios name, and leave path blank.
-  char *adname;
+  char *adname = malloc(sizeof(*adname) * (strlen(path) + strlen(name) + 5));
+  assert(adname);
+  sprintf(adname, "%s/%s", path, name);
 
-  asprintf(&adname, "%s/%s", path, name);
   char *nrname;
   int ierr;
 
@@ -551,7 +561,9 @@ _mrc_adios_read_attr(struct mrc_io *io, const char *path, int type,
     break;
   case PT_STRING:
     check_writeblock(io, fd_p, adname, &select);
-    asprintf(&nrname, "%s-sz", adname);
+    nrname = malloc(sizeof(*nrname) * (strlen(adname) + 10));
+    assert(nrname);
+    sprintf(nrname, "%s-sz", adname);
     int size;
     ierr = adios_schedule_read(fd_p, select, nrname, 0, 1, &size); AERR(ierr);
     ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
@@ -574,7 +586,9 @@ _mrc_adios_read_attr(struct mrc_io *io, const char *path, int type,
     break;
   case PT_INT_ARRAY:
     check_writeblock(io, fd_p, adname, &select);
-    asprintf(&nrname, "%s-nrvals", adname);
+    nrname = malloc(sizeof(*nrname) * (strlen(adname) + 10));
+    assert(nrname);
+    sprintf(nrname, "%s-nrvals", adname);
     ierr = adios_schedule_read(fd_p, select, nrname, 0, 1, &pv->u_int_array.nr_vals); AERR(ierr);
     ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
     assert(pv->u_int_array.nr_vals > 0);
@@ -614,9 +628,11 @@ _mrc_adios_write_fld(struct mrc_io *io, const char *path, struct mrc_fld *fld)
   int ierr;
 
   const char *name = mrc_fld_name(fld);
-  char *adname;
 
-  asprintf(&adname, "%s/%s", path, name);
+  char *adname = malloc(sizeof(*adname) * (strlen(path) + strlen(name) + 5));
+  assert(adname);
+  sprintf(adname, "%s/%s", path, name);
+
 
   char *dimnames = (char *) malloc(sizeof(*dimnames) * (strlen(adname) + 100));
 
@@ -663,9 +679,10 @@ _mrc_adios_read_fld(struct mrc_io *io, const char *path, struct mrc_fld *fld)
   int ierr;
 
   const char *name = mrc_fld_name(fld);
-  char *adname;
 
-  asprintf(&adname, "%s/%s", path, name);
+  char *adname = malloc(sizeof(*adname) * (strlen(path) + strlen(name) + 5));
+  assert(adname);
+  sprintf(adname, "%s/%s", path, name);
 
   char *dimnames = (char *) malloc(sizeof(*dimnames) * (strlen(adname) + 100));
 
