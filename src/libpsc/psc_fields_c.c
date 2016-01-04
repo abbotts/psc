@@ -128,7 +128,7 @@ psc_fields_c_adios_size(struct psc_fields *fields)
   for (int d = 0; d < 3; d++) {
     fldsize *= fields->im[d];
   }
-  return 8 * sizeof(int) + fldsize;
+  return 9 * sizeof(int) + fldsize;
 }
 
 static void
@@ -151,16 +151,22 @@ psc_fields_c_define_adios_vars(struct psc_fields *fields, const char *path, int6
   adios_define_var(m_adios_group, varcomp, "", adios_integer, "","","");
 
   for (int d = 2; d >= 0; d--) {
-    sprintf(varnames, "%s/im[%d]", path, d);
-    adios_define_var(m_adios_group, varnames, "", adios_integer, "","","");
+    sprintf(varnames, "%s/im%d", path, d);
+    adios_define_var(m_adios_group, varnames, "", adios_integer, "", "", "");
     strcat(varcomp, ", ");
     strcat(varcomp, varnames);
   }
 
+  // FIXME : For some reason adios complains when I try to define the dimensions
+  // of field_c using the varcomp string "nr_comp, im2, im1, im0". But it seems
+  // to be okay if I just calculate the bulk length and use that as the dim, so 
+  // that's what we'll do for now.
+  sprintf(varnames, "%s/len", path);
+  adios_define_var(m_adios_group, varnames, "", adios_integer, "", "", "");
+
   char *vardata;
   asprintf(&vardata, "%s/fields_c", path);
-
-  adios_define_var(m_adios_group, vardata, "", adios_double, varcomp, "", "");
+  adios_define_var(m_adios_group, vardata, "", adios_double, varnames, "", "");
 
   free(vardata);
   free(varnames);
@@ -183,9 +189,17 @@ psc_fields_c_write_adios(struct psc_fields *fields, const char *path, int64_t fd
   ierr = adios_write(fd_p, varnames, (void *) &fields->nr_comp); AERR(ierr);
 
   for (int d = 2; d >= 0; d--) {
-    sprintf(varnames, "%s/im[%d]", path, d);
+    sprintf(varnames, "%s/im%d", path, d);
     ierr = adios_write(fd_p, varnames, (void *) &fields->im[d]); AERR(ierr);
   }
+
+  int len = fields->nr_comp;
+
+  for (int d = 0; d < 3; d++) {
+    len *= fields->im[d];
+  }
+  sprintf(varnames, "%s/len", path);
+  ierr = adios_write(fd_p, varnames, (void *) &len); AERR(ierr);
 
   sprintf(varnames, "%s/fields_c", path);
   ierr = adios_write(fd_p, varnames, (void *) fields->data); AERR(ierr);
@@ -219,7 +233,7 @@ psc_fields_c_read_adios(struct psc_fields *fields, const char *path, ADIOS_FILE 
 
 
   for (int d = 2; d >= 0; d--) {
-    sprintf(varnames, "%s/im[%d]", path, d);
+    sprintf(varnames, "%s/im%d", path, d);
     info = adios_inq_var(afp, varnames); assert(info);
     assert(fields->im[d] == *(int *)info->value);
     adios_free_varinfo(info);
