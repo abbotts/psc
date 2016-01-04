@@ -156,6 +156,7 @@ psc_particles_c_read_adios(struct psc_particles *prts, const char *path, ADIOS_F
 
   psc_particles_setup(prts);
 
+  sprintf(varnames, "%s/particles_c", path);
   ierr = adios_schedule_read(afp, NULL, varnames, 0, 1, 
                             (void *) particles_c_get_one(prts, 0)); AERR(ierr);
 
