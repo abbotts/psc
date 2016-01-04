@@ -491,6 +491,24 @@ _mrc_adios_write_attr(struct mrc_io *io, const char *path, int type,
 }
 
 static void
+check_writeblock(struct mrc_io *io, ADIOS_FILE *fd_p, const char *adname, ADIOS_SELECTION **select) 
+{
+  // FIXME : Some things are apparently still written from a single proc in psc (field
+  // and particle patches are local objects) so the writeblock selection messes up.
+  // We need to add a check for how many writeblocks we have, and if there's only one then 
+  // use that. Also, we might as well add in a check that the number of writeblocks are the
+  // same as the io size on this communicator.
+
+  ADIOS_VARINFO *info = adios_inq_var(fd_p, adname); assert(info);
+  if (info->nblocks[0] == 1) {
+    *select = NULL;
+  } else {
+    assert(info->nblocks[0] == io->size);
+  }
+  adios_free_varinfo(info);
+}
+
+static void
 _mrc_adios_read_attr(struct mrc_io *io, const char *path, int type,
     const char *name, union param_u *pv)
 {
@@ -509,6 +527,7 @@ _mrc_adios_read_attr(struct mrc_io *io, const char *path, int type,
 
   ADIOS_FILE *fd_p = aio->read_file;
   ADIOS_SELECTION *select = aio->selection;
+  assert(select);
   // Use path/name for adios name, and leave path blank.
   char *adname;
 
@@ -526,10 +545,12 @@ _mrc_adios_read_attr(struct mrc_io *io, const char *path, int type,
   case MRC_VAR_FLOAT:
   case PT_DOUBLE:
   case MRC_VAR_DOUBLE:
+    check_writeblock(io, fd_p, adname, &select);
     ierr = adios_schedule_read(fd_p, select, adname, 0, 1, pv); AERR(ierr);
     ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
     break;
   case PT_STRING:
+    check_writeblock(io, fd_p, adname, &select);
     asprintf(&nrname, "%s-sz", adname);
     int size;
     ierr = adios_schedule_read(fd_p, select, nrname, 0, 1, &size); AERR(ierr);
@@ -547,10 +568,12 @@ _mrc_adios_read_attr(struct mrc_io *io, const char *path, int type,
   case PT_INT3:
   case PT_FLOAT3:
   case PT_DOUBLE3:
+    check_writeblock(io, fd_p, adname, &select);
     ierr = adios_schedule_read(fd_p, select, adname, 0, 1, pv); AERR(ierr);
     ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
     break;
   case PT_INT_ARRAY:
+    check_writeblock(io, fd_p, adname, &select);
     asprintf(&nrname, "%s-nrvals", adname);
     ierr = adios_schedule_read(fd_p, select, nrname, 0, 1, &pv->u_int_array.nr_vals); AERR(ierr);
     ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
