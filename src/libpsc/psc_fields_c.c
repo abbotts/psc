@@ -147,7 +147,7 @@ psc_fields_c_define_adios_vars(struct psc_fields *fields, const char *path, int6
   // im variables + nr_comp
   char *varcomp = malloc(sizeof(*varcomp) * 4*(strlen(path) + 10));
 
-  asprintf(&varcomp, "%s/nr_comp", path);
+  sprintf(varcomp, "%s/nr_comp", path);
   adios_define_var(m_adios_group, varcomp, "", adios_integer, "","","");
 
   for (int d = 2; d >= 0; d--) {
@@ -164,8 +164,8 @@ psc_fields_c_define_adios_vars(struct psc_fields *fields, const char *path, int6
   sprintf(varnames, "%s/len", path);
   adios_define_var(m_adios_group, varnames, "", adios_integer, "", "", "");
 
-  char *vardata;
-  asprintf(&vardata, "%s/fields_c", path);
+  char *vardata = malloc(sizeof(*vardata) * (strlen(path) + 12));
+  sprintf(vardata, "%s/fields_c", path);
   adios_define_var(m_adios_group, vardata, "", adios_double, varnames, "", "");
 
   free(vardata);

@@ -88,8 +88,8 @@ psc_particles_c_define_adios_vars(struct psc_particles *prts, const char *path, 
   sprintf(varnames, "%s/n_part", path);
   adios_define_var(m_adios_group, varnames, "", adios_integer, "","","");
 
-  char *vardata;
-  asprintf(&vardata, "%s/particles_c", path);
+  char *vardata = malloc(sizeof(*vardata) * (strlen(path)+20)) ;
+  sprintf(vardata, "%s/particles_c", path);
   strcat(varnames, ", 10");
 
   adios_define_var(m_adios_group, vardata, "", adios_double, varnames, "", "");
