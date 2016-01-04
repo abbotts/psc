@@ -67,8 +67,15 @@ _psc_mparticles_write(struct psc_mparticles *mparticles, struct mrc_io *io)
 #endif
 
   mrc_io_write_ref(io, mparticles, "domain", mparticles->domain);
-  mrc_io_write_int(io, mparticles, "flags", mparticles->flags);
-  
+
+  if (strncmp(mrc_io_type(io), "adios", strlen("adios")) != 0 ) {
+    // FIXME : this is already getting written (because it's a param), 
+    // and in adios writing that causes problems because it doubles
+    // the number of writeblocks. I'm not sure why it's written
+    // manually, but maybe it shouldn't be...
+    mrc_io_write_int(io, mparticles, "flags", mparticles->flags);
+  }
+
   for (int p = 0; p < mparticles->nr_patches; p++) {
     char name[20]; sprintf(name, "prts%d", p);
     mrc_io_write_ref(io, mparticles, name, mparticles->prts[p]);
