@@ -109,7 +109,7 @@ _mrc_adios_size_fld(struct mrc_io *io, const char *path, struct mrc_fld *fld)
   struct mrc_adios_size *ads = to_size(io);
 
   // We write three ints to define nr_patches, nr_global_patches, and patch off
-  ads->group_size += sizeof(int) * 3;
+  ads->group_size += sizeof(int) * 4; // and with +1 for the len hack
 
   // The size of the bulk field that we're dumping
   ads->group_size += fld->_size_of_type * fld->_len;
@@ -338,8 +338,11 @@ _mrc_adios_define_fld(struct mrc_io *io, const char *path, struct mrc_fld *fld)
     assert(0);
   }
 
+  sprintf(dimstr, "%s/len", adname);
+  adios_define_var(gid, dimstr, "", adios_integer, "", "", "");
+
   sprintf(dimnames, "%s/data", adname);
-  adios_define_var(gid, dimnames, "", dtype, dimstr, gdimstr, offstr);
+  adios_define_var(gid, dimnames, "", dtype, dimstr, "", "");
 
   free(adname);
   free(dimnames);
@@ -658,6 +661,13 @@ _mrc_adios_write_fld(struct mrc_io *io, const char *path, struct mrc_fld *fld)
   ierr = adios_write(fd_p, dimnames, (void *) &info.global_patch); AERR(ierr);
 
   // Write the actual mrc_fld data (just a dump of the array)
+  // FIXME : Adios on chester seems to choke with the offset lists I'm giving it,
+  // even though it works on my laptop. But it seems to be okay with flat
+  // dumps when treating it as a local array with length "_len", so that's what
+  // we'll do.
+  sprintf(dimnames, "%s/len", adname);
+  ierr = adios_write(fd_p, dimnames, (void *) &fld->_len); AERR(ierr);
+
   // FIXME: Assuming that the patch dimensions cannot change from the
   // define step (although we're allowing the number of patches to change)
   sprintf(dimnames, "%s/data", adname);
