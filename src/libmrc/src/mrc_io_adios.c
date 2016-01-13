@@ -152,11 +152,13 @@ struct mrc_io_ops mrc_io_adios_size_ops = {
 struct mrc_adios_define {
   int64_t group_id;
   char *method; ///< the transport method for this group
+  char *trans_opts; ///< a comma separated string of options fof the select transport method
 };
 
 #define VAR(x) (void *)offsetof(struct mrc_adios_define, x)
 static struct param adios_define_descr[] = {
   { "method"              , VAR(method)               , PARAM_STRING("MPI")      },
+  { "transport_options"   , VAR(trans_opts)           , PARAM_STRING(NULL)       },
   {},
 };
 #undef VAR
@@ -173,10 +175,14 @@ _mrc_adios_define_open(struct mrc_io *io, const char *mode)
   // Declare a group using the object name, without any stats of time index
   ierr = adios_declare_group(&adef->group_id, mrc_io_name(io), "", adios_flag_no); AERR(ierr);
 
-  const char *tmethod, *outdir;
+  const char *tmethod, *outdir, *topts;
   mrc_io_get_param_string(io, "method", &tmethod);
+  mrc_io_get_param_string(io, "transport_options", &topts);  
+  if (!topts) {
+    topts = "";
+  }
   mrc_io_get_param_string(io, "outdir", &outdir);
-  ierr = adios_select_method(adef->group_id, tmethod, "", ""); AERR(ierr);
+  ierr = adios_select_method(adef->group_id, tmethod, topts, ""); AERR(ierr);
 }
 
 static void
