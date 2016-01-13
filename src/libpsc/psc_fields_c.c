@@ -128,7 +128,7 @@ psc_fields_c_adios_size(struct psc_fields *fields)
   for (int d = 0; d < 3; d++) {
     fldsize *= fields->im[d];
   }
-  return 9 * sizeof(int) + fldsize;
+  return 1 * sizeof(int) + fldsize;
 }
 
 static void
@@ -136,26 +136,29 @@ psc_fields_c_define_adios_vars(struct psc_fields *fields, const char *path, int6
 {
   
   char *varnames = malloc(sizeof(*varnames) * (strlen(path) + 50));
-  sprintf(varnames, "%s/p", path);
-  adios_define_var(m_adios_group, varnames, "", adios_integer, "","","");
+  // ------------
+  // This all gets written from the psc_fields class param definition, and isn't needed here.
+  // ------------
+  // sprintf(varnames, "%s/p", path);
+  // adios_define_var(m_adios_group, varnames, "", adios_integer, "","","");
 
-  sprintf(varnames, "%s/ib", path);
-  adios_define_var(m_adios_group, varnames, "", adios_integer, "3","","");
+  // sprintf(varnames, "%s/ib", path);
+  // adios_define_var(m_adios_group, varnames, "", adios_integer, "3","","");
 
-  // Because of our wacky backwards memory ordering we have to 
-  // allocate a bigass string to hold the 3 individualy written
-  // im variables + nr_comp
-  char *varcomp = malloc(sizeof(*varcomp) * 4*(strlen(path) + 10));
+  // // Because of our wacky backwards memory ordering we have to 
+  // // allocate a bigass string to hold the 3 individualy written
+  // // im variables + nr_comp
+  // char *varcomp = malloc(sizeof(*varcomp) * 4*(strlen(path) + 10));
 
-  sprintf(varcomp, "%s/nr_comp", path);
-  adios_define_var(m_adios_group, varcomp, "", adios_integer, "","","");
+  // sprintf(varcomp, "%s/nr_comp", path);
+  // adios_define_var(m_adios_group, varcomp, "", adios_integer, "","","");
 
-  for (int d = 2; d >= 0; d--) {
-    sprintf(varnames, "%s/im%d", path, d);
-    adios_define_var(m_adios_group, varnames, "", adios_integer, "", "", "");
-    strcat(varcomp, ", ");
-    strcat(varcomp, varnames);
-  }
+  // for (int d = 2; d >= 0; d--) {
+  //   sprintf(varnames, "%s/im%d", path, d);
+  //   adios_define_var(m_adios_group, varnames, "", adios_integer, "", "", "");
+  //   strcat(varcomp, ", ");
+  //   strcat(varcomp, varnames);
+  // }
 
   // FIXME : For some reason adios complains when I try to define the dimensions
   // of field_c using the varcomp string "nr_comp, im2, im1, im0". But it seems
@@ -170,7 +173,7 @@ psc_fields_c_define_adios_vars(struct psc_fields *fields, const char *path, int6
 
   free(vardata);
   free(varnames);
-  free(varcomp);
+  //free(varcomp);
 }
 
 // write the particles using adios
@@ -179,19 +182,23 @@ psc_fields_c_write_adios(struct psc_fields *fields, const char *path, int64_t fd
 {
   int ierr;
   char *varnames = malloc(sizeof(*varnames) * (strlen(path) + 50));
-  sprintf(varnames, "%s/p", path);
-  ierr = adios_write(fd_p, varnames, (void *) &fields->p); AERR(ierr);
+  // ------------
+  // This all gets written from the psc_fields class param definition, and isn't needed here.
+  // ------------
 
-  sprintf(varnames, "%s/ib", path);
-  ierr = adios_write(fd_p, varnames, (void *) fields->ib); AERR(ierr);
+  // sprintf(varnames, "%s/p", path);
+  // ierr = adios_write(fd_p, varnames, (void *) &fields->p); AERR(ierr);
 
-  sprintf(varnames, "%s/nr_comp", path);
-  ierr = adios_write(fd_p, varnames, (void *) &fields->nr_comp); AERR(ierr);
+  // sprintf(varnames, "%s/ib", path);
+  // ierr = adios_write(fd_p, varnames, (void *) fields->ib); AERR(ierr);
 
-  for (int d = 2; d >= 0; d--) {
-    sprintf(varnames, "%s/im%d", path, d);
-    ierr = adios_write(fd_p, varnames, (void *) &fields->im[d]); AERR(ierr);
-  }
+  // sprintf(varnames, "%s/nr_comp", path);
+  // ierr = adios_write(fd_p, varnames, (void *) &fields->nr_comp); AERR(ierr);
+
+  // for (int d = 2; d >= 0; d--) {
+  //   sprintf(varnames, "%s/im%d", path, d);
+  //   ierr = adios_write(fd_p, varnames, (void *) &fields->im[d]); AERR(ierr);
+  // }
 
   int len = fields->nr_comp;
 
@@ -216,31 +223,50 @@ psc_fields_c_read_adios(struct psc_fields *fields, const char *path, ADIOS_FILE 
 
   char *varnames = malloc(sizeof(*varnames) * (strlen(path) + 50));
 
-  sprintf(varnames, "%s/p", path);
-  ADIOS_VARINFO *info = adios_inq_var(afp, varnames); assert(info);
-  fields->p = *(int *)info->value;
-  adios_free_varinfo(info);
+  // ------------
+  // This all gets read from the psc_fields class param definition, and isn't needed here.
+  // ------------
 
-  int ib[3];
-  sprintf(varnames, "%s/ib", path);
-  ierr = adios_schedule_read(afp, NULL, varnames, 0, 1, (void *) ib); AERR(ierr);
-  ierr = adios_perform_reads(afp, 1); AERR(ierr);
+  // sprintf(varnames, "%s/p", path);
+  // ADIOS_VARINFO *info = adios_inq_var(afp, varnames); assert(info);
+  // fields->p = *(int *)info->value;
+  // adios_free_varinfo(info);
 
-  sprintf(varnames, "%s/nr_comp", path);
-  info = adios_inq_var(afp, varnames); assert(info);
-  assert(fields->nr_comp == *(int *)info->value);
-  adios_free_varinfo(info);
+  // int ib[3];
+  // sprintf(varnames, "%s/ib", path);
+  // ierr = adios_schedule_read(afp, NULL, varnames, 0, 1, (void *) ib); AERR(ierr);
+  // ierr = adios_perform_reads(afp, 1); AERR(ierr);
+
+  // sprintf(varnames, "%s/nr_comp", path);
+  // info = adios_inq_var(afp, varnames); assert(info);
+  // assert(fields->nr_comp == *(int *)info->value);
+  // adios_free_varinfo(info);
 
 
-  for (int d = 2; d >= 0; d--) {
-    sprintf(varnames, "%s/im%d", path, d);
-    info = adios_inq_var(afp, varnames); assert(info);
-    assert(fields->im[d] == *(int *)info->value);
-    adios_free_varinfo(info);
-    assert(ib[d] == fields->ib[d]);
-  }
+  // for (int d = 2; d >= 0; d--) {
+  //   sprintf(varnames, "%s/im%d", path, d);
+  //   info = adios_inq_var(afp, varnames); assert(info);
+  //   assert(fields->im[d] == *(int *)info->value);
+  //   adios_free_varinfo(info);
+  //   assert(ib[d] == fields->ib[d]);
+  // }
 
   psc_fields_setup(fields);
+
+  // Safety check
+  int len = fields->nr_comp;
+
+  for (int d = 0; d < 3; d++) {
+    len *= fields->im[d];
+  }
+  sprintf(varnames, "%s/len", path);
+  int filelen;
+  ierr = adios_schedule_read(afp, NULL, varnames, 0, 1, 
+                            (void *) &filelen); AERR(ierr);
+
+  ierr = adios_perform_reads(afp, 1); AERR(ierr);
+
+  assert(len == filelen);
 
   sprintf(varnames, "%s/fields_c", path);
 
