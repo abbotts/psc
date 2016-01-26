@@ -508,7 +508,7 @@ _mrc_adios_write_attr(struct mrc_io *io, const char *path, int type,
   free(adname);
 }
 
-static void
+static bool
 check_writeblock(struct mrc_io *io, ADIOS_FILE *fd_p, const char *adname, ADIOS_SELECTION **select) 
 {
   // FIXME : Some things are apparently still written from a single proc in psc (field
@@ -520,10 +520,30 @@ check_writeblock(struct mrc_io *io, ADIOS_FILE *fd_p, const char *adname, ADIOS_
   ADIOS_VARINFO *info = adios_inq_var(fd_p, adname); assert(info);
   if (info->nblocks[0] == 1) {
     *select = NULL;
-  } else {
-    assert(info->nblocks[0] == io->size);
+    adios_free_varinfo(info);
+    return false;
+  } 
+  else if (info->nblocks[0] == io->size) {
+    adios_free_varinfo(info);
+    return false;
+  } 
+  else {
+    int ierr = adios_inq_var_blockinfo(fd_p, info); AERR(ierr);
+    *select = NULL;
+    for (int blk = 0; blk < info->nblocks[0]; blk++) {
+      if (info->blockinfo[blk].process_id == io->rank) {
+        *select = adios_selection_writeblock(blk);        
+         adios_free_varinfo(info);
+         return true;
+      }
+    }
+    mprintf("Error! %s: cannot associate rank %d to one of %d writeblocks\n", adname, io->rank, info->nblocks[0]);
+    for (int blk = 0; blk < info->nblocks[0]; blk++) {    
+      mprintf("Block %d - pid %d\n", blk, info->blockinfo[blk].process_id);
+    }
+    adios_free_varinfo(info);
+    assert(0);
   }
-  adios_free_varinfo(info);
 }
 
 static void
@@ -553,7 +573,7 @@ _mrc_adios_read_attr(struct mrc_io *io, const char *path, int type,
 
   char *nrname;
   int ierr;
-
+  bool free_select = false;
   switch (type) {
   case PT_SELECT:
   case PT_INT:
@@ -564,12 +584,12 @@ _mrc_adios_read_attr(struct mrc_io *io, const char *path, int type,
   case MRC_VAR_FLOAT:
   case PT_DOUBLE:
   case MRC_VAR_DOUBLE:
-    check_writeblock(io, fd_p, adname, &select);
+    free_select = check_writeblock(io, fd_p, adname, &select);
     ierr = adios_schedule_read(fd_p, select, adname, 0, 1, pv); AERR(ierr);
     ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
     break;
   case PT_STRING:
-    check_writeblock(io, fd_p, adname, &select);
+    free_select = check_writeblock(io, fd_p, adname, &select);
     nrname = malloc(sizeof(*nrname) * (strlen(adname) + 10));
     assert(nrname);
     sprintf(nrname, "%s-sz", adname);
@@ -589,12 +609,12 @@ _mrc_adios_read_attr(struct mrc_io *io, const char *path, int type,
   case PT_INT3:
   case PT_FLOAT3:
   case PT_DOUBLE3:
-    check_writeblock(io, fd_p, adname, &select);
+    free_select = check_writeblock(io, fd_p, adname, &select);
     ierr = adios_schedule_read(fd_p, select, adname, 0, 1, pv); AERR(ierr);
     ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
     break;
   case PT_INT_ARRAY:
-    check_writeblock(io, fd_p, adname, &select);
+    free_select = check_writeblock(io, fd_p, adname, &select);
     nrname = malloc(sizeof(*nrname) * (strlen(adname) + 10));
     assert(nrname);
     sprintf(nrname, "%s-nrvals", adname);
@@ -614,6 +634,7 @@ _mrc_adios_read_attr(struct mrc_io *io, const char *path, int type,
     assert(0);
   }
   free(adname);
+  if (free_select) adios_selection_delete(select);
 }
 
 // --------------------------------------------------
