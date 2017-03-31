@@ -1,4 +1,4 @@
-# OLCF Titan login/compile node
+# OLCF internal mini-titan (aka chester)
 
 if test -z "$CC"; then
    CC="cc"
@@ -29,9 +29,6 @@ CUDACC=nvcc
 CUDAMPIFLAGS=
 CUDACFLAGS="-ccbin cc -arch sm_35"
 CUDALIBS="${CRAY_CUDATOOLKIT_POST_LINK_OPTS}"
-# I don't need this on chester, but Titan
-# doesn't actually want to use the CXX linker for some reason..
-LDFLAGS="-lstdc++" 
 
 #if test -z "$HDF5_DIR"; then
 #   HDF5_DIR=/opt/cray/hdf5-parallel/1.8.5.0/hdf5-parallel-gnu
