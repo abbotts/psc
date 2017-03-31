@@ -79,7 +79,7 @@ AS_IF([test "$have_hdf5" != "no"],
       [AC_DEFINE([HAVE_HDF5], [], [we have HDF5 library + headers])])
 AM_CONDITIONAL([HAVE_HDF5], [test "$have_hdf5" != "no"])
 
-MRC_CHECK_ADIOS(1.9.0)
+MRC_CHECK_ADIOS(1.11.0)
 CFLAGS="$ADIOS_CFLAGS $CFLAGS"
 LIBS="$ADIOS_LIBS $LIBS"
 AS_IF([test "$have_adios" != "no"],

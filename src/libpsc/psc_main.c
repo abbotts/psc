@@ -67,8 +67,10 @@ psc_main(int *argc, char ***argv, struct psc_ops *type)
     // Having a fixed buffer size is probably a bad idea..
     // Can noxml adios use a percentage of free space?
     int buf_size;
+    // FIXME - with the ADIOS API change (to using set_max_buffer),
+    // it may be possible to move this deeper in.
     psc_get_param_int(psc, "adios_buffer_size", &buf_size);
-    ierr = adios_allocate_buffer(ADIOS_BUFFER_ALLOC_NOW, buf_size); AERR(ierr);
+    adios_set_max_buffer_size(buf_size);
 #else
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);

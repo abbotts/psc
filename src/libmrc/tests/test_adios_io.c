@@ -151,7 +151,7 @@ main(int argc, char **argv)
 
   int ierr;
   ierr = adios_init_noxml(MPI_COMM_WORLD); assert(ierr==0);
-  ierr = adios_allocate_buffer(ADIOS_BUFFER_ALLOC_NOW, 100); assert(ierr==0);
+  adios_set_max_buffer_size(100);
 
   static int adios_group_defined;
 
