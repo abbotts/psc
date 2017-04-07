@@ -20,10 +20,12 @@ mrc_fld_print(struct mrc_fld *x, const char *name)
   for (int r = 0; r < size; r++) {
     MPI_Barrier(comm);
     if (r == rank) {
-      mrc_fld_foreach(x, i,j,k, 0, 0) {
-	mprintf("%s[%d,%d,%d] = %g\n", name, i, j, k, F3(x, 0, i,j,k));
-      } mrc_fld_foreach_end;
-      mprintf("\n");
+      for (int p = 0; p < mrc_fld_nr_patches(x); p++) {
+	mrc_fld_foreach(x, i,j,k, 0, 0) {
+	  mprintf("%s[%d,%d,%d, %d] = %g\n", name, i, j, k, p, M3(x, 0, i,j,k, p));
+	} mrc_fld_foreach_end;
+	mprintf("\n");
+      }
     }
   }
 }
@@ -92,9 +94,11 @@ main(int argc, char **argv)
   mrc_fld_set_type(x, FLD_TYPE);
   mrc_fld_setup(x);
   mrc_fld_view(x);
-  mrc_fld_foreach(x, i,j,k, 0, 0) {
-    F3(x, 0, i,0,0) = i;
-  } mrc_fld_foreach_end;
+  for (int p = 0; p < mrc_fld_nr_patches(x); p++) {
+    mrc_fld_foreach(x, i,j,k, 0, 0) {
+      M3(x, 0, i,0,0, p) = i;
+    } mrc_fld_foreach_end;
+  }
 
   struct mrc_fld *y = mrc_domain_fld_create(domain, 0, "y0");
   mrc_fld_set_type(y, FLD_TYPE);
@@ -102,8 +106,8 @@ main(int argc, char **argv)
 
   struct mrc_mat *A = mrc_mat_create(comm);
   mrc_mat_set_type(A, "csr_mpi");
-  mrc_mat_set_param_int(A, "m", y->_len);
-  mrc_mat_set_param_int(A, "n", x->_len);
+  mrc_mat_set_param_int(A, "m", mrc_fld_len(y));
+  mrc_mat_set_param_int(A, "n", mrc_fld_len(x));
   mrc_mat_set_from_options(A);
   mrc_mat_setup(A);
   mrc_mat_view(A);
@@ -113,13 +117,13 @@ main(int argc, char **argv)
   // patches, etc.
   struct mrc_patch_info info;
   mrc_domain_get_local_patch_info(domain, 0, &info);
-  int row_off = x->_len * info.global_patch;
+  int row_off = mrc_fld_len(x) * info.global_patch;
   
-  for (int i = 0; i < x->_len; i++) {
+  for (int i = 0; i < mrc_fld_len(x); i++) {
     MRC_D1(x, i) = i + row_off;
   }
   
-  for (int i = 0; i < x->_len; i++) {
+  for (int i = 0; i < mrc_fld_len(x); i++) {
     int row_idx = i + row_off;
     
     for (const struct entry *e = mat[row_idx]; e && e->col >= 0; e++) {
@@ -134,7 +138,7 @@ main(int argc, char **argv)
   int _r = 2;
   // this test to see if _r is local only works if y is evenly
   // divided among procs
-  if (testcase == 0 && rank * y->_len <= _r && _r < (rank + 1) * y->_len) {
+  if (testcase == 0 && rank * mrc_fld_len(y) <= _r && _r < (rank + 1) * mrc_fld_len(y)) {
     // test adding to rows/cols out of order
     // mprintf("> test adding values out of order\n");
     mrc_mat_add_value(A, _r, 0, 10.0);
@@ -165,7 +169,7 @@ main(int argc, char **argv)
 
   mrc_fld_print(x, "x");
 
-  mrc_mat_apply(y->_vec, A, x->_vec);
+  mrc_mat_apply(y->_nd->vec, A, x->_nd->vec);
 
   MPI_Barrier(comm);
   mrc_fld_print(y, "y");

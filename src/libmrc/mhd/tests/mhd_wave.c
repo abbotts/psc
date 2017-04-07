@@ -149,7 +149,8 @@ ggcm_mhd_ic_cpaw_run(struct ggcm_mhd_ic *ic)
 
   struct mrc_fld *f = mrc_fld_get_as(mhd->fld, FLD_TYPE);
   struct mrc_crds *crds = mrc_domain_get_crds(mhd->domain);  
-  double xl[3], xh[3], L[3], r[3];
+  const double *lo = mrc_crds_lo(crds), *hi = mrc_crds_hi(crds);
+  double L[3], r[3];
   double Aroty, Arotz;
   double Broty, Brotz;
   double pert_fc[3];
@@ -169,10 +170,8 @@ ggcm_mhd_ic_cpaw_run(struct ggcm_mhd_ic *ic)
   // mrc_fld_set_type(pert_fc, FLD_TYPE);
   // mrc_fld_setup(pert_fc);   
 
-  mrc_crds_get_param_double3(crds, "l", xl);
-  mrc_crds_get_param_double3(crds, "h", xh);
   for (int i = 0; i < 3; i++) {
-    L[i] = xh[i] - xl[i];
+    L[i] = hi[i] - lo[i];
     k[i] = 2.0 * M_PI * sub->m[i] / L[i];
     ksq += sqr(k[i]);
   }
@@ -329,7 +328,8 @@ ggcm_mhd_ic_sound_run(struct ggcm_mhd_ic *ic)
 
   struct mrc_fld *f = mrc_fld_get_as(mhd->fld, FLD_TYPE);
   struct mrc_crds *crds = mrc_domain_get_crds(mhd->domain);  
-  double xl[3], xh[3], L[3], r[3];
+  const double *lo = mrc_crds_lo(crds), *hi = mrc_crds_hi(crds);
+  double L[3], r[3];
   double k[3], kunit[3];
   double ksq = 0;
   double kmag;
@@ -338,10 +338,8 @@ ggcm_mhd_ic_sound_run(struct ggcm_mhd_ic *ic)
   double alpha2, c2, s2;
   double xrot, pert;
 
-  mrc_crds_get_param_double3(crds, "l", xl);
-  mrc_crds_get_param_double3(crds, "h", xh);
   for (int i = 0; i < 3; i++) {
-    L[i] = xh[i] - xl[i];
+    L[i] = hi[i] - lo[i];
     k[i] = 2.0 * M_PI * sub->m[i] / L[i];
     ksq += sqr(k[i]);
   }
@@ -382,12 +380,12 @@ ggcm_mhd_ic_sound_run(struct ggcm_mhd_ic *ic)
       xrot = c1 * c2 * r[0] + c2 * s1 * r[1] - s2 * r[2];
       pert = sin(kmag * xrot);
 
-      RR(f, ix,iy,iz) = sub->rho0 + rho_pert * pert;
-      PP(f, ix,iy,iz) = sub->p0 + p_pert * pert;
+      RR_(f, ix,iy,iz, p) = sub->rho0 + rho_pert * pert;
+      PP_(f, ix,iy,iz, p) = sub->p0 + p_pert * pert;
 
-      VX(f, ix,iy,iz) = (sub->v_par + v_pert * pert) * kunit[0];
-      VY(f, ix,iy,iz) = (sub->v_par + v_pert * pert) * kunit[1];
-      VZ(f, ix,iy,iz) = (sub->v_par + v_pert * pert) * kunit[2];
+      VX_(f, ix,iy,iz, p) = (sub->v_par + v_pert * pert) * kunit[0];
+      VY_(f, ix,iy,iz, p) = (sub->v_par + v_pert * pert) * kunit[1];
+      VZ_(f, ix,iy,iz, p) = (sub->v_par + v_pert * pert) * kunit[2];
     } mrc_fld_foreach_end;
   }
 

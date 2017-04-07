@@ -20,32 +20,29 @@ libmhd_la_SOURCES = \
 	ggcm_mhd_bnd_conducting_y.c \
 	ggcm_mhd_bnd_conducting_y_float.c \
 	ggcm_mhd_bnd_conducting_y_double.c \
-	ggcm_mhd_bnd_conducting_y_double_aos.c \
+	ggcm_mhd_bnd_conducting_y_gkeyll.c \
 	ggcm_mhd_bnd_open_x.c \
 	ggcm_mhd_bnd_inoutflow_sc_ggcm_float.c \
 	ggcm_mhd_bnd_inoutflow_sc_ggcm_double.c \
 	ggcm_mhd_bnd_inoutflow_sc_float.c \
 	ggcm_mhd_bnd_inoutflow_sc_double.c \
 	ggcm_mhd_bnd_inoutflow_fc_double.c \
-	ggcm_mhd_bnd_inoutflow_sc_double_aos.c \
-	ggcm_mhd_bnd_inoutflow_fc_double_aos.c \
+	ggcm_mhd_bnd_inoutflow_fc_cc_double.c \
 	ggcm_mhd_bnd_inoutflow_gkeyll.c \
 	ggcm_mhd_bnd_sphere_map.c \
 	ggcm_mhd_bnd_sphere_fc_float.c \
 	ggcm_mhd_bnd_sphere_fc_double.c \
 	ggcm_mhd_bnd_sphere_sc_float.c \
 	ggcm_mhd_bnd_sphere_sc_double.c \
-	ggcm_mhd_bnd_sphere_sc_double_aos.c \
-	ggcm_mhd_bnd_sphere_fc_double_aos.c \
+	ggcm_mhd_bnd_sphere_sc_ggcm_double.c \
+	ggcm_mhd_bnd_sphere_fc_cc_double.c \
+	ggcm_mhd_bnd_sphere_gkeyll.c \
 	\
 	ggcm_mhd_bndsw.c \
 	ggcm_mhd_bndsw_none.c \
 	\
 	ggcm_mhd_crds.c \
 	ggcm_mhd_crds_c.c \
-	\
-	ggcm_mhd_crds_gen.c \
-	ggcm_mhd_crds_gen_mrc.c \
 	\
 	ggcm_mhd_diag.c \
 	ggcm_mhd_diag_c.c \
@@ -54,23 +51,23 @@ libmhd_la_SOURCES = \
 	ggcm_mhd_diag_item.c \
 	ggcm_mhd_diag_item_state.c \
 	ggcm_mhd_diag_item_primitive.c \
-	primvar.c \
-	primvar_float.c \
-	primvar_double.c \
-	primbb.c \
-	primbb_float.c \
-	primbb_double.c \
-	zmaskn.c \
-	zmaskn_float.c \
-	zmaskn_double.c \
 	ggcm_mhd_diag_item_divb.c \
 	ggcm_mhd_diag_item_rank.c \
 	ggcm_mhd_diag_item_j.c \
 	ggcm_mhd_diag_item_e.c \
 	ggcm_mhd_diag_item_gkeyll_5m.c \
 	ggcm_mhd_diag_item_misc.c \
-	calc_currcc.c \
-	calc_divb.c \
+	\
+	ggcm_mhd_primitive.c \
+	ggcm_mhd_primitive_scons.c \
+	ggcm_mhd_primitive_fcons_fc.c \
+	ggcm_mhd_primitive_fcons_cc.c \
+	ggcm_mhd_primitive_gkeyll.c \
+	\
+	ggcm_mhd_bgrid.c \
+	ggcm_mhd_bgrid_fc_ggcm.c \
+	ggcm_mhd_bgrid_fc.c \
+	ggcm_mhd_bgrid_cc.c \
 	\
 	ggcm_mhd_dipole.c \
 	ggcm_mhd_dipole_none.c \
@@ -80,6 +77,7 @@ libmhd_la_SOURCES = \
 	ggcm_mhd_ic.c \
 	ggcm_mhd_ic_mirdip_float.c \
 	ggcm_mhd_ic_mirdip_double.c \
+	ggcm_mhd_ic_obstacle_double.c \
 	\
 	ggcm_mhd_step.c \
 	ggcm_mhd_get_fields.c \
@@ -92,30 +90,18 @@ libmhd_la_SOURCES = \
 	calc_cweno_fluxes.c \
 	calc_ct_rhs.c \
 	calc_semiconsv_rhs.c \
-	ggcm_mhd_fill_ghost_fld.c \
 	ggcm_mhd_get_fields.c \
 	ggcm_mhd_step_cweno.c \
-	ggcm_mhd_step_c_float.c \
-	ggcm_mhd_step_c_double.c \
+	ggcm_mhd_step_mhd_scons_float.c \
+	ggcm_mhd_step_mhd_scons_double.c \
+	ggcm_mhd_step_mhd_scons_ggcm_float.c \
+	ggcm_mhd_step_mhd_scons_ggcm_double.c \
 	ggcm_mhd_step_c2_float.c \
-	ggcm_mhd_step_c2_double.c \
 	ggcm_mhd_step_c3_float.c \
 	ggcm_mhd_step_c3_double.c \
+	ggcm_mhd_step_mhdcc_common.c \
 	ggcm_mhd_step_vlct.c \
 	ggcm_mhd_step_vl.c \
-	mhd_reconstruct.c \
-	mhd_reconstruct_pcm_float.c \
-	mhd_reconstruct_pcm_double.c \
-	mhd_reconstruct_plm_float.c \
-	mhd_reconstruct_plm_double.c \
-	mhd_riemann.c \
-	mhd_riemann_rusanov_float.c \
-	mhd_riemann_rusanov_double.c \
-	mhd_riemann_hll.c \
-	mhd_riemann_hlld.c \
-	mhd_riemann_hydro_rusanov.c \
-	mhd_riemann_hydro_hll.c \
-	mhd_riemann_hydro_hllc.c \
 	mhd_util.c \
 	\
 	ggcm_mhd_gkeyll.c \
@@ -135,8 +121,6 @@ AM_CPPFLAGS += \
 	-I$(GKSOFTWARE)/eigen/include/eigen3
 
 libmhd_la_SOURCES += \
-	ggcm_mhd_ic_gkeyll.c \
-	ggcm_mhd_ic_gkeyll_lua.cxx \
 	ggcm_mhd_step_gkeyll.c \
 	ggcm_mhd_step_gkeyll_lua.cxx \
 	LcRegisterModules.cpp
@@ -147,7 +131,7 @@ libmhd_la_LIBADD += \
 	-L$(GKSOFTWARE)/gsl/lib -lgsl -lgslcblas \
 	-L$(GKSOFTWARE)/txbase/lib -ltxbase \
 	-L$(GKSOFTWARE)/lua/lib -llua \
-	-lfftw3 \
+	-L/opt/local/lib -lfftw3 \
 	-L$(GKSOFTWARE)/lapack/lib -llapack -lblas
 endif
 
@@ -163,7 +147,6 @@ EXTRA_libmhd_la_SOURCES = \
 	ggcm_mhd_step_c2_common.c \
 	ggcm_mhd_step_c3_common.c \
 	ggcm_mhd_step_c_common.c \
-	ggcm_mhd_step_legacy.c \
 	mhd_1d.c \
 	mhd_3d.c \
 	mhd_reconstruct_pcm_common.c \

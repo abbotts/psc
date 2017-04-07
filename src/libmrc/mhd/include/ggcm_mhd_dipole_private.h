@@ -10,6 +10,10 @@ struct ggcm_mhd_dipole {
   // params
   struct ggcm_mhd *mhd;
   double r1lim;
+  // dipole strength is given as equatorial B field <dipolestrength>
+  // at distance <dipolestrength_r>, e.g., 30574 (nT) at 1 (RE)
+  double dipolestrength;
+  double dipolestrength_r;
 
   // state
   struct mrc_fld *bdip;
@@ -46,6 +50,8 @@ struct ggcm_mhd_dipole_ops {
 		      float moment[3], double diptime);
   void (*update_b_field)(struct ggcm_mhd_dipole *mhd_dipole, struct mrc_fld *bdip,
 			 struct mrc_fld *x, double dacttime);
+  double (*vector_potential)(struct ggcm_mhd_dipole *mhd_dipole, int m, double x[3],
+			     float x0[3], float moment[3], float xmir);
 };
 
 extern struct ggcm_mhd_dipole_ops ggcm_mhd_dipole_float_ops;

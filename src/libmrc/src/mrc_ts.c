@@ -16,6 +16,12 @@ _mrc_ts_create(struct mrc_ts *ts)
 }
 
 static void
+_mrc_ts_setup(struct mrc_ts *ts)
+{
+  ts->tnorm = ts->norm_time / ts->norm_time_scale;
+}
+
+static void
 _mrc_ts_view(struct mrc_ts *ts)
 {
   if (ts->n == 0)
@@ -45,9 +51,21 @@ mrc_ts_step_number(struct mrc_ts *ts)
 }
 
 void
+mrc_ts_set_time(struct mrc_ts *ts, float time)
+{
+  ts->time = time;
+}
+
+void
 mrc_ts_set_dt(struct mrc_ts *ts, float dt)
 {
   ts->dt = dt;
+}
+
+void
+mrc_ts_set_step_number(struct mrc_ts *ts, int n)
+{
+  ts->n = n;
 }
 
 void
@@ -108,6 +126,16 @@ mrc_ts_set_step_function(struct mrc_ts *ts,
 }
 
 void
+mrc_ts_set_get_dt_function(struct mrc_ts *ts,
+			   double (*get_dt_f)(void *ctx, struct mrc_ts *ts,
+					      struct mrc_obj *x),
+			   void *ctx)
+{
+  ts->get_dt_f = get_dt_f;
+  ts->get_dt_f_ctx = ctx;
+}
+
+void
 mrc_ts_set_pre_step_function(struct mrc_ts *ts,
 			     void (*pre_step)(void *ctx, struct mrc_ts *ts,
 					      struct mrc_obj *x),
@@ -141,6 +169,13 @@ mrc_ts_step(struct mrc_ts *ts)
     ts->pre_step(ts->pre_step_ctx, ts, ts->x);
   }
 
+  if (ts->get_dt_f) {
+    ts->dt = ts->get_dt_f(ts->rhsf_ctx, ts, ts->x);
+    if (ts->time + ts->dt > ts->max_time) {
+      ts->dt = ts->max_time - ts->time;
+    }
+  }
+
   assert(mrc_ts_ops(ts)->step);
   mrc_ts_ops(ts)->step(ts);
 
@@ -166,10 +201,6 @@ mrc_ts_solve(struct mrc_ts *ts)
   }
 
   while ((ts->time < ts->max_time) && (ts->n < ts->max_steps)) {
-    if (ts->time + ts->dt > ts->max_time) {
-      ts->dt = ts->max_time - ts->time;
-    }
-
     mrc_ts_monitors_run(ts);
     mrc_ts_step(ts);
     ts->time += ts->dt;
@@ -255,9 +286,11 @@ mrc_ts_init()
 
 #define VAR(x) (void *)offsetof(struct mrc_ts, x)
 static struct param mrc_ts_param_descr[] = {
-  { "max_time"      , VAR(max_time)      , PARAM_FLOAT(1.)           },
-  { "max_steps"     , VAR(max_steps)     , PARAM_INT(100000)         },
-  { "dt"            , VAR(dt)            , PARAM_FLOAT(1e-2)           },
+  { "max_time"       , VAR(max_time)       , PARAM_FLOAT(1.)    },
+  { "max_steps"      , VAR(max_steps)      , PARAM_INT(100000)  },
+  { "dt"             , VAR(dt)             , PARAM_FLOAT(1e-2)  },
+  { "norm_time"      , VAR(norm_time)      , PARAM_DOUBLE(1.)   },
+  { "norm_time_scale", VAR(norm_time_scale), PARAM_DOUBLE(1.)   },
   {},
 };
 #undef VAR
@@ -268,6 +301,7 @@ struct mrc_class_mrc_ts mrc_class_mrc_ts = {
   .param_descr  = mrc_ts_param_descr,
   .init         = mrc_ts_init,
   .create       = _mrc_ts_create,
+  .setup        = _mrc_ts_setup,
   .view         = _mrc_ts_view,
 };
 

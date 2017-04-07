@@ -77,13 +77,13 @@ xdmf_write_topology_m3(FILE *f, int im[3], const char *filename, const char *crd
 
   fprintf(f, "     <Geometry GeometryType=\"VXVYVZ\">\n");
   fprintf(f, "     <DataItem Name=\"VX\" DataType=\"Float\" Dimensions=\"%d\" Format=\"HDF\">\n", im[0] + 1);
-  fprintf(f, "        %s:/%s/crd0_nc/p%d/1d\n", filename, crd_nc_path[0], p);
+  fprintf(f, "        %s:/%s/crd_nc[0]/p%d/1d\n", filename, crd_nc_path[0], p);
   fprintf(f, "     </DataItem>\n");
   fprintf(f, "     <DataItem Name=\"VY\" DataType=\"Float\" Dimensions=\"%d\" Format=\"HDF\">\n", im[1] + 1);
-  fprintf(f, "        %s:/%s/crd1_nc/p%d/1d\n", filename, crd_nc_path[1], p);
+  fprintf(f, "        %s:/%s/crd_nc[1]/p%d/1d\n", filename, crd_nc_path[1], p);
   fprintf(f, "     </DataItem>\n");
   fprintf(f, "     <DataItem Name=\"VZ\" DataType=\"Float\" Dimensions=\"%d\" Format=\"HDF\">\n", im[2] + 1);
-  fprintf(f, "        %s:/%s/crd2_nc/p%d/1d\n", filename, crd_nc_path[2], p);
+  fprintf(f, "        %s:/%s/crd_nc[2]/p%d/1d\n", filename, crd_nc_path[2], p);
   fprintf(f, "     </DataItem>\n");
   fprintf(f, "     </Geometry>\n");
   fprintf(f, "\n");
@@ -290,13 +290,14 @@ xdmf_spatial_create_m3_parallel(list_t *xdmf_spatial_list, const char *name,
   if (strcmp(mrc_crds_type(crds), "amr_uniform") == 0 ||
       strcmp(mrc_crds_type(crds), "uniform") == 0) {
     xs->uniform = true;
-    double xl[3];
+    const double *xl = mrc_crds_lo(crds);
     double dx[3];
-    mrc_crds_get_param_double3(crds, "l", xl);
     mrc_crds_get_dx(crds, 0, dx);
+
     for (int d = 0; d < 3; d++) {
-      xs->xl[d][0] = xl[d] + slab_off[d] * dx[d];
-      xs->dx[d][0] = dx[d];
+      double xnorm = crds->xnorm;
+      xs->xl[d][0] = (xl[d] + slab_off[d] * dx[d]) * xnorm;
+      xs->dx[d][0] = dx[d] * xnorm;
     }
   } else {
     for (int d = 0; d < 3; d++) {

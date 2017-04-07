@@ -24,7 +24,7 @@ ggcm_mhd_diag_item_e_ec_run(struct ggcm_mhd_diag_item *item,
                             int diag_type, float plane)
 {
   struct ggcm_mhd *mhd = item->diag->mhd;
-  float scale_ee = mhd->par.eenorm;
+  float scale_ee = mhd->eenorm;
   struct mrc_fld *E = mrc_domain_fld_create(mhd->domain, SW_2, "ex_ec:ey_ec:ez_ec");
   mrc_fld_set_type(E, FLD_TYPE);
   mrc_fld_setup(E);
@@ -64,7 +64,7 @@ ggcm_mhd_diag_item_e_cc_run(struct ggcm_mhd_diag_item *item,
   mrc_fld_get_param_int(f, "mhd_type", &mhd_type);
 
   struct ggcm_mhd *mhd = item->diag->mhd;
-  float scale_ee = mhd->par.eenorm;
+  float scale_ee = mhd->eenorm;
   struct mrc_fld *Eec = mrc_domain_fld_create(mhd->domain, SW_2, "ex_ec:ey_ec:ez_ec");
   struct mrc_fld *Ecc = mrc_domain_fld_create(mhd->domain, SW_2, "ex_cc:ey_cc:ez_cc");
   mrc_fld_set_type(Eec, FLD_TYPE);
@@ -75,7 +75,7 @@ ggcm_mhd_diag_item_e_cc_run(struct ggcm_mhd_diag_item *item,
   ggcm_mhd_step_get_e_ec(mhd->step, Eec, f);
 
   // average ec -> cc
-  if (mhd_type == MT_SEMI_CONSERVATIVE_GGCM) {
+  if (MT_BGRID(mhd_type) == MT_BGRID_FC_GGCM) {
     for (int p = 0; p < mrc_fld_nr_patches(Ecc); p++) {
       mrc_fld_foreach(Eec, ix,iy,iz, SW_2 - 1, SW_2) {
 	M3(Ecc, 0, ix, iy, iz, p) =
@@ -89,8 +89,7 @@ ggcm_mhd_diag_item_e_cc_run(struct ggcm_mhd_diag_item *item,
 		   M3(Eec, 2, ix  , iy-dy, iz   , p) + M3(Eec, 2, ix-dx, iy-dy, iz   , p));
       } mrc_fld_foreach_end;
     }
-  } else if (mhd_type == MT_SEMI_CONSERVATIVE ||
-             mhd_type == MT_FULLY_CONSERVATIVE) {
+  } else if (MT_BGRID(mhd_type) == MT_BGRID_FC) {
     for (int p = 0; p < mrc_fld_nr_patches(Ecc); p++) {
       mrc_fld_foreach(Eec, ix,iy,iz, SW_2, SW_2 - 1) {
 	M3(Ecc, 0, ix, iy, iz, p) =
@@ -104,6 +103,8 @@ ggcm_mhd_diag_item_e_cc_run(struct ggcm_mhd_diag_item *item,
 		   M3(Eec, 2, ix  , iy+dy, iz   , p) + M3(Eec, 2, ix+dx, iy+dy, iz   , p));
       } mrc_fld_foreach_end;
     }
+  } else {
+    assert(0);
   }
 
   ggcm_mhd_diag_c_write_one_field(io, Ecc, 0, "ex_cc", scale_ee, diag_type, plane);

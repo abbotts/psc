@@ -6,6 +6,7 @@
 #include <ggcm_mhd_step.h>
 
 #include <mrc_domain.h>
+#include <mrc_physics.h>
 
 #include <math.h>
 #include <string.h>
@@ -22,16 +23,20 @@
 static void
 ggcm_mhd_mirdip_create(struct ggcm_mhd *mhd)
 {
-  ggcm_mhd_default_box(mhd);
+  // normalization based on RE, equitorial field, ionospheric density
+  mhd->par.norm_length = C_RE; // earth radius in m
+  mhd->par.norm_B = C_DIPOLESTRENGTH; // equitorial dipole field in T
+  mhd->par.norm_density = 1e10 * C_AMU; // approximate ionospheric density in kg/m^3
 
-  mhd->par.bbnorm = 30574.f;
-  mhd->par.vvnorm = 6692.98f;
-  mhd->par.rrnorm = 10000.f;
-  mhd->par.ppnorm = 7.43866e8;
-  mhd->par.ccnorm = 3.81885;
-  mhd->par.eenorm = 204631.f;
-  mhd->par.resnorm = 53.5848e6;
-  mhd->par.tnorm = .95189935;
+  // select output / input unit prefixes as in OpenGGCM
+  mhd->par.bbnorm0  = 1e-9;  // uT
+  mhd->par.vvnorm0  = 1e3;   // km/s
+  mhd->par.rrnorm0  = 1e6 * C_AMU; // amu/cm^3
+  mhd->par.ppnorm0  = 1e-12; // pPa
+  mhd->par.ccnorm0  = 1e-6;  // uA/m^2
+  mhd->par.eenorm0  = 1e-3;  // mV/m
+  mhd->par.resnorm0 = 1.f;   // ...
+  mhd->par.tnorm0   = 1.f;   // s
 
   ggcm_mhd_ic_set_type(mhd->ic, "mirdip_double");
   ggcm_mhd_bnd_set_type(mhd->bnd, "inoutflow_sc_double");
