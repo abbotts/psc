@@ -2,6 +2,8 @@
 #include <mrc_io_private.h>
 #include <mrc_list.h>
 #include <mrc_params.h>
+#include <mrc_fld.h>
+#include <mrc_ndarray.h>
 #include <adios.h>
 #include <adios_read.h>
 
@@ -11,6 +13,22 @@
 #define CE assert(ierr == 0)
 
 #define AERR(ierr) {if (ierr != 0) { adios_err_print(ierr); } }
+
+static inline size_t
+sizeof_mrc_type(int mtype)
+{
+  switch(mtype) {
+    case MRC_NT_FLOAT:
+      return sizeof(int);
+    case MRC_NT_DOUBLE:
+      return sizeof(double);
+    case MRC_NT_INT:
+      return sizeof(int);
+    default:
+      // Bad data type
+      assert(0);
+  }
+}
 
 static inline void
 adios_err_print(int ierr)
@@ -86,6 +104,7 @@ _mrc_adios_size_attr(struct mrc_io *io, const char *path, int type,
     ads->group_size += 3 * sizeof(float);
     break;
   case PT_DOUBLE3:
+  case MRC_VAR_DOUBLE3:
     ads->group_size += 3 * sizeof(double);
     break;
   case PT_INT_ARRAY:
@@ -112,7 +131,27 @@ _mrc_adios_size_fld(struct mrc_io *io, const char *path, struct mrc_fld *fld)
   ads->group_size += sizeof(int) * 4; // and with +1 for the len hack
 
   // The size of the bulk field that we're dumping
-  ads->group_size += fld->_size_of_type * fld->_len;
+  ads->group_size += sizeof_mrc_type(mrc_fld_data_type(fld)) * mrc_fld_len(fld);
+}
+
+static void
+_mrc_adios_size_ndarray(struct mrc_io *io, const char *path, struct mrc_ndarray *nd)
+{
+  assert(nd->n_dims);
+  assert(mrc_ndarray_f_contiguous(nd));
+
+  struct mrc_adios_size *ads = to_size(io);
+  // Mimic the hdf5_serial method for this, so lets hope we're not missing
+  // something important here
+
+  // We write one int to define how many dims, then n_dims ints for the size
+  // This might not be neccessary: since dims is a param it should already be
+  // written and we could just point to it. But that might be an optimization
+  // for later on...
+  // ads->group_size += sizeof(int) * (1 + nd->n_dims);
+
+  // The bulk size of the data we're dumping
+  ads->group_size += nd->size_of_type * nd->len;
 }
 
 static void
@@ -146,6 +185,7 @@ struct mrc_io_ops mrc_io_adios_size_ops = {
   .close         = _mrc_adios_size_close,
   .write_attr    = _mrc_adios_size_attr,
   .write_fld     = _mrc_adios_size_fld,
+  .write_ndarray = _mrc_adios_size_ndarray,
 };
 #undef to_size
 
@@ -243,6 +283,7 @@ _mrc_adios_define_attr(struct mrc_io *io, const char *path, int type,
     break;
 
   case PT_DOUBLE3:
+  case MRC_VAR_DOUBLE3:
     adios_define_var(gid, adname, "", adios_double, "3", "", "");
     break;
   case PT_INT_ARRAY:
@@ -263,12 +304,56 @@ _mrc_adios_define_attr(struct mrc_io *io, const char *path, int type,
   free(adname);
 }
 
+static void
+_mrc_adios_define_ndarrary(struct mrc_io *io, const char *path, struct mrc_ndarray *nd)
+{
+  assert(nd->n_dims);
+  assert(mrc_ndarray_f_contiguous(nd));
+
+  struct mrc_adios_define *adef = to_define(io);
+  int64_t gid = adef->group_id;
+
+  // I'm not 100% sure that adios can take a single variable name pointing
+  // to an array on integers (dims, in this case) and make a sensible array
+  // descriptor out of it. Either way, the order will be wrong, since adios will
+  // assume C order and we're using F order. So just dump is as a block, like we
+  // do with mrc_flds.
+
+
+  int dtype;
+  switch (nd->data_type) {
+  case MRC_NT_FLOAT:
+    dtype = adios_real;
+    break;
+  case MRC_NT_DOUBLE:
+    dtype = adios_double;
+    break;
+  case MRC_NT_INT:
+    dtype = adios_integer;
+    break;
+  default:
+    assert(0);
+  }
+
+  // This should be written as a param from the class descriptor write (I hope)
+  char *lenname = (char *) malloc(sizeof(*lenname) * (strlen(path) + 10));
+  sprintf(lenname, "%s/len", path);
+
+  char *datname = (char *) malloc(sizeof(*datname) * (strlen(path) + 10));
+  sprintf(datname, "%s/data", path);
+
+  adios_define_var(gid, datname, "", dtype, lenname, "", "");
+
+  free(lenname);
+  free(datname);
+}
+
 static void 
 _mrc_adios_define_fld(struct mrc_io *io, const char *path, struct mrc_fld *fld)
 {
   // mrc_flds are dumped as a single block with ghost points (and god help our soul), 
   // so there pretty easy to calculate the size of.
-
+  int ierr;
   struct mrc_adios_define *adef = to_define(io);
   int64_t gid = adef->group_id;
 
@@ -304,7 +389,8 @@ _mrc_adios_define_fld(struct mrc_io *io, const char *path, struct mrc_fld *fld)
   // it wants its dimensions specified with C order (like HDF5 does).
   // Maybe this doesn't matter, but it's how I did it for phdf5, and it's actually
   // a little bit easier this way.
-  int nr_spatial_dims = fld->_nr_spatial_dims;
+  int nr_spatial_dims;
+  ierr = mrc_fld_get_param_int(fld, "nr_spatial_dims", &nr_spatial_dims); CE;
   int nr_file_dims = nr_spatial_dims + 1;
 
 
@@ -317,7 +403,7 @@ _mrc_adios_define_fld(struct mrc_io *io, const char *path, struct mrc_fld *fld)
   // but patch number may
   for (int d=0; d<nr_file_dims; d++) {
     char valstr[20];
-    fdims[d] = fld->_ghost_dims[nr_file_dims - 1 - d]; // patch is always (_ghost)_dims[nr_file_dims]
+    fdims[d] = mrc_fld_ghost_dims(fld)[nr_file_dims - 1 - d]; // patch is always (_ghost)_dims[nr_file_dims]
     sprintf(valstr, ", %d", fdims[d]);
     strcat(gdimstr, valstr);
     strcat(dimstr, valstr);    
@@ -325,12 +411,12 @@ _mrc_adios_define_fld(struct mrc_io *io, const char *path, struct mrc_fld *fld)
     deflen *= fdims[d];
   }
 
-  assert(deflen == fld->_len);
+  assert(deflen == mrc_fld_len(fld));
 
   // Define the field
 
   int dtype;
-  switch (fld->_data_type) {
+  switch (mrc_fld_data_type(fld)) {
   case MRC_NT_FLOAT:
     dtype = adios_real;
     break;
@@ -378,6 +464,7 @@ struct mrc_io_ops mrc_io_adios_define_ops = {
   .close         = _mrc_adios_define_close,
   .write_attr    = _mrc_adios_define_attr,
   .write_fld     = _mrc_adios_define_fld,
+  .write_ndarray = _mrc_adios_define_ndarrary,
 };
 #undef to_define
 
@@ -478,6 +565,7 @@ _mrc_adios_write_attr(struct mrc_io *io, const char *path, int type,
   case PT_INT3:
   case PT_FLOAT3:
   case PT_DOUBLE3:
+  case MRC_VAR_DOUBLE3:
     ierr = adios_write(fd_p, adname, pv); AERR(ierr);
     break;
   case PT_STRING:
@@ -609,6 +697,7 @@ _mrc_adios_read_attr(struct mrc_io *io, const char *path, int type,
   case PT_INT3:
   case PT_FLOAT3:
   case PT_DOUBLE3:
+  case MRC_VAR_DOUBLE3:
     free_select = check_writeblock(io, fd_p, adname, &select);
     ierr = adios_schedule_read(fd_p, select, adname, 0, 1, pv); AERR(ierr);
     ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
@@ -620,10 +709,12 @@ _mrc_adios_read_attr(struct mrc_io *io, const char *path, int type,
     sprintf(nrname, "%s-nrvals", adname);
     ierr = adios_schedule_read(fd_p, select, nrname, 0, 1, &pv->u_int_array.nr_vals); AERR(ierr);
     ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
-    assert(pv->u_int_array.nr_vals > 0);
-    pv->u_int_array.vals = calloc(pv->u_int_array.nr_vals, sizeof(int));
-    ierr = adios_schedule_read(fd_p, select, adname, 0, 1, pv->u_int_array.vals); AERR(ierr);
-    ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
+    // FIXME : I don't like that nr_vals = 0 things can be written now..
+    if (pv->u_int_array.nr_vals > 0) {
+      pv->u_int_array.vals = calloc(pv->u_int_array.nr_vals, sizeof(int));
+      ierr = adios_schedule_read(fd_p, select, adname, 0, 1, pv->u_int_array.vals); AERR(ierr);
+      ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
+    }
     free(nrname);
     break;
   case PT_PTR:
@@ -635,6 +726,25 @@ _mrc_adios_read_attr(struct mrc_io *io, const char *path, int type,
   }
   free(adname);
   if (free_select) adios_selection_delete(select);
+}
+
+static void
+_mrc_adios_write_ndarrary(struct mrc_io *io, const char *path, struct mrc_ndarray *nd)
+{
+  assert(nd->n_dims);
+  assert(mrc_ndarray_f_contiguous(nd));
+  struct mrc_adios_io *aio = to_adios(io);
+  int64_t fd_p = aio->write_file;
+
+  int ierr;
+
+  // This should be written as a param from the class descriptor write (I hope)
+  char *datname = (char *) malloc(sizeof(*datname) * (strlen(path) + 10));
+  sprintf(datname, "%s/data", path);
+
+  ierr = adios_write(fd_p, datname, nd->arr); AERR(ierr);
+
+  free(datname);
 }
 
 // --------------------------------------------------
@@ -693,16 +803,38 @@ _mrc_adios_write_fld(struct mrc_io *io, const char *path, struct mrc_fld *fld)
   // dumps when treating it as a local array with length "_len", so that's what
   // we'll do.
   sprintf(dimnames, "%s/len", adname);
-  ierr = adios_write(fd_p, dimnames, (void *) &fld->_len); AERR(ierr);
+  int fld_len = mrc_fld_len(fld);
+  ierr = adios_write(fd_p, dimnames, (void *) &fld_len); AERR(ierr);
 
   // FIXME: Assuming that the patch dimensions cannot change from the
   // define step (although we're allowing the number of patches to change)
   sprintf(dimnames, "%s/data", adname);
-  ierr = adios_write(fd_p, dimnames, fld->_arr); AERR(ierr);
+  ierr = adios_write(fd_p, dimnames, fld->_nd->arr); AERR(ierr);
 
   free(adname);
   free(dimnames);
 
+}
+
+static void
+_mrc_adios_read_ndarrary(struct mrc_io *io, const char *path, struct mrc_ndarray *nd)
+{
+  assert(nd->n_dims);
+  assert(mrc_ndarray_f_contiguous(nd));
+  struct mrc_adios_io *aio = to_adios(io);
+  ADIOS_FILE *fd_p = aio->read_file;
+  ADIOS_SELECTION *select = aio->selection;
+
+  int ierr;
+
+  // This should be written as a param from the class descriptor write (I hope)
+  char *datname = (char *) malloc(sizeof(*datname) * (strlen(path) + 10));
+  sprintf(datname, "%s/data", path);
+
+  ierr = adios_schedule_read(fd_p, select, datname, 0, 1, nd->arr); AERR(ierr);
+  ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
+
+  free(datname);
 }
 
 static void
@@ -753,7 +885,7 @@ _mrc_adios_read_fld(struct mrc_io *io, const char *path, struct mrc_fld *fld)
   assert(patch_off == info.global_patch);
 
   sprintf(dimnames, "%s/data", adname);
-  ierr = adios_schedule_read(fd_p, select, dimnames, 0, 1, fld->_arr); AERR(ierr);
+  ierr = adios_schedule_read(fd_p, select, dimnames, 0, 1, fld->_nd->arr); AERR(ierr);
   ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
 
   free(adname);
@@ -801,6 +933,8 @@ struct mrc_io_ops mrc_io_adios_ops = {
   .read_attr     = _mrc_adios_read_attr,  
   .write_fld     = _mrc_adios_write_fld,
   .read_fld      = _mrc_adios_read_fld,
+  .write_ndarray = _mrc_adios_write_ndarrary,
+  .read_ndarray  = _mrc_adios_read_ndarrary,
 };
 
 #undef to_adios

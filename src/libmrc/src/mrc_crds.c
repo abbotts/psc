@@ -57,8 +57,9 @@ _mrc_crds_create(struct mrc_crds *crds)
 static void
 _mrc_crds_read(struct mrc_crds *crds, struct mrc_io *io)
 {
-  if (strcmp(mrc_io_type(io), "hdf5_serial") != 0) {
-    // FIXME, but reading back coordinates is broken for everything but hdf5_serial,
+  if ((strcmp(mrc_io_type(io), "hdf5_serial") != 0)  &&
+      (strncmp(mrc_io_type(io), "adios", 5) != 0)) {
+    // FIXME, but reading back coordinates is broken for everything but hdf5_serial or adios,
     // because for other mrc_io types, we don't write crd_nc (at least not completely),
     // so there's no (easy) way to restore it.
     assert(0);
@@ -68,7 +69,8 @@ _mrc_crds_read(struct mrc_crds *crds, struct mrc_io *io)
 
   // this is a carbon copy on all nodes that run the crd_gen, so this
   // write is only for checkpointing
-  if (strcmp(mrc_io_type(io), "hdf5_serial") == 0) {
+  if ((strcmp(mrc_io_type(io), "hdf5_serial") == 0)  ||
+      (strncmp(mrc_io_type(io), "adios", 5) == 0)) {
     crds->crd_nc[0] = mrc_io_read_ref(io, crds, "crd_nc[0]", mrc_fld);
     crds->crd_nc[1] = mrc_io_read_ref(io, crds, "crd_nc[1]", mrc_fld);
     crds->crd_nc[2] = mrc_io_read_ref(io, crds, "crd_nc[2]", mrc_fld);
@@ -118,7 +120,8 @@ _mrc_crds_write(struct mrc_crds *crds, struct mrc_io *io)
     mrc_io_set_param_int3(io, "slab_dims", slab_dims_save);
   }
 
-  if (strcmp(mrc_io_type(io), "hdf5_serial") == 0) { // FIXME
+  if ((strcmp(mrc_io_type(io), "hdf5_serial") == 0) ||
+      (strncmp(mrc_io_type(io), "adios", 5) == 0)) { // FIXME
     for (int d = 0; d < 3; d++) {
       struct mrc_fld *crd_nc = crds->crd_nc[d];
       mrc_io_write_ref(io, crds, mrc_fld_name(crd_nc), crd_nc);
