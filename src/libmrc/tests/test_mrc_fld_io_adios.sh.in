@@ -1,4 +1,4 @@
-IOTYPE="adios"
+IOTYPE="adios_exe"
 
 ESTATUS=0
 for fldtype in "float" "double" "int"; do

@@ -14,6 +14,15 @@
 
 #define AERR(ierr) {if (ierr != 0) { adios_err_print(ierr); } }
 
+struct defined_group
+{
+  list_t group_list;
+  char *name;
+  int64_t gid;
+};
+
+LIST_HEAD(defined_adios_groups);
+
 static inline size_t
 sizeof_mrc_type(int mtype)
 {
@@ -209,11 +218,34 @@ static void
 _mrc_adios_define_open(struct mrc_io *io, const char *mode)
 {
   assert(strcmp(mode, "w") == 0);
-
+  // Calling this method will generate the initial variable
+  // definition of the adios group, and will force regeneration
+  // if the group is already defined
   struct mrc_adios_define *adef = to_define(io);
   int ierr;
-  // Declare a group using the object name, without any stats of time index
-  ierr = adios_declare_group(&adef->group_id, mrc_io_name(io), "", adios_flag_no); AERR(ierr);
+  struct defined_group *gptr;
+  adef->group_id = 0;
+  // See if we already have a group setup for this io name
+  if (!list_empty(&defined_adios_groups)) {
+    list_for_each_entry(gptr, &defined_adios_groups, group_list) {
+      if(strcmp(gptr->name, mrc_io_name(io)) == 0) {
+        adef->group_id = gptr->gid;
+        break;
+      }
+    }
+  }
+
+  if (adef->group_id) {
+    // If we have this io name already, delete the old definition
+    ierr = adios_delete_vardefs(adef->group_id); AERR(ierr);
+  } else {
+    // Declare a group using the object name, without any stats or time index
+    ierr = adios_declare_group(&adef->group_id, mrc_io_name(io), "", adios_flag_no); AERR(ierr);
+    gptr = calloc(1, sizeof(*gptr));
+    gptr->name = strdup(mrc_io_name(io));
+    gptr->gid = adef->group_id;
+    list_add_tail(&(gptr->group_list), &defined_adios_groups);
+  }
 
   const char *tmethod, *outdir, *topts;
   mrc_io_get_param_string(io, "method", &tmethod);
@@ -923,7 +955,7 @@ static struct mrc_obj_method mrc_adios_methods[] = {
 
 
 struct mrc_io_ops mrc_io_adios_ops = {
-  .name          = "adios",
+  .name          = "adios_exe",
   .parallel      = false, // This is kind of a lie, but it should function like serial io
   .size          = sizeof(struct mrc_adios_io),
   .methods       = mrc_adios_methods,
