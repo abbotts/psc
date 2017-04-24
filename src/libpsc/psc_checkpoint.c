@@ -73,7 +73,7 @@ psc_write_checkpoint(struct psc *psc)
 #ifdef HAVE_ADIOS
   static bool adios_group_defined;
   if (psc->prm.adios_checkpoint) {
-    const char *adios_steps[] = { "adios_define", "adios_size", "adios_exe"};
+    const char *adios_steps[] = { "adios_define", "adios_size", "adios_write"};
 
     uint64_t payload_size = 0;
     for (int step = 0; step < 3; step++) {

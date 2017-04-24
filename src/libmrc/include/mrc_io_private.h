@@ -78,6 +78,7 @@ extern struct mrc_io_ops mrc_io_combined_ops;
 extern struct mrc_io_ops mrc_io_adios_size_ops;
 extern struct mrc_io_ops mrc_io_adios_define_ops;
 extern struct mrc_io_ops mrc_io_adios_ops;
+extern struct mrc_io_ops mrc_io_adios_meta_ops;
 
 #endif
 

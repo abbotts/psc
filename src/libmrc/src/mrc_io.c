@@ -723,6 +723,7 @@ mrc_io_init()
   mrc_class_register_subclass(&mrc_class_mrc_io, &mrc_io_adios_size_ops);
   mrc_class_register_subclass(&mrc_class_mrc_io, &mrc_io_adios_define_ops);  
   mrc_class_register_subclass(&mrc_class_mrc_io, &mrc_io_adios_ops);    
+  mrc_class_register_subclass(&mrc_class_mrc_io, &mrc_io_adios_meta_ops);  
 #endif
   mrc_class_register_subclass(&mrc_class_mrc_io, &mrc_io_ascii_ops);
   mrc_class_register_subclass(&mrc_class_mrc_io, &mrc_io_vpic_ops);

@@ -155,7 +155,7 @@ main(int argc, char **argv)
 
   static int adios_group_defined;
 
-  const char *adios_steps[] = { "adios_define", "adios_size", "adios_exe"};
+  const char *adios_steps[] = { "adios_define", "adios_size", "adios_write"};
 
   uint64_t payload_size = 0;
   for (int step = 0; step < 3; step++) {
@@ -191,7 +191,7 @@ main(int argc, char **argv)
   //mrc_io_view(io);
 
   struct mrc_io *io = mrc_io_create(mrc_fld_comm(fld));
-  mrc_io_set_type(io, "adios_exe");
+  mrc_io_set_type(io, "adios");
   mrc_io_set_param_string(io, "outdir", "adios_test");
   mrc_io_setup(io);
   //mrc_io_view(io);

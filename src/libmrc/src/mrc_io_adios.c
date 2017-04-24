@@ -337,7 +337,7 @@ _mrc_adios_define_attr(struct mrc_io *io, const char *path, int type,
 }
 
 static void
-_mrc_adios_define_ndarrary(struct mrc_io *io, const char *path, struct mrc_ndarray *nd)
+_mrc_adios_define_ndarray(struct mrc_io *io, const char *path, struct mrc_ndarray *nd)
 {
   assert(nd->n_dims);
   assert(mrc_ndarray_f_contiguous(nd));
@@ -496,7 +496,7 @@ struct mrc_io_ops mrc_io_adios_define_ops = {
   .close         = _mrc_adios_define_close,
   .write_attr    = _mrc_adios_define_attr,
   .write_fld     = _mrc_adios_define_fld,
-  .write_ndarray = _mrc_adios_define_ndarrary,
+  .write_ndarray = _mrc_adios_define_ndarray,
 };
 #undef to_define
 
@@ -522,25 +522,14 @@ _mrc_adios_open(struct mrc_io *io, const char *mode)
 
   int ierr;
 
-  if (strcmp(mode, "w") == 0) {
+  // This is now a pure writing method
+  assert(strcmp(mode, "w") == 0);
 
-    ierr = adios_open(&aio->write_file, mrc_io_name(io), filename, "w", mrc_io_comm(io)); AERR(ierr);
-    assert(aio->group_size > 0);
-    uint64_t total_size;
-    ierr = adios_group_size(aio->write_file, aio->group_size, &total_size); AERR(ierr);
+  ierr = adios_open(&aio->write_file, mrc_io_name(io), filename, "w", mrc_io_comm(io)); AERR(ierr);
+  assert(aio->group_size > 0);
+  uint64_t total_size;
+  ierr = adios_group_size(aio->write_file, aio->group_size, &total_size); AERR(ierr);
 
-  } else if (strcmp(mode, "r") == 0) {
-
-    // FIXME: hardcoding open method here
-    ierr = adios_read_init_method(ADIOS_READ_METHOD_BP, mrc_io_comm(io), "abort_on_error"); AERR(ierr);
-    aio->read_file = adios_read_open_file(filename, ADIOS_READ_METHOD_BP, mrc_io_comm(io));
-    // FIXME: This only allows reading back on the same number of processors!
-    aio->selection = adios_selection_writeblock(io->rank);
-    assert(aio->read_file);
-
-  } else {
-    assert(0);
-  }
 }
 
 static void
@@ -549,22 +538,10 @@ _mrc_adios_close(struct mrc_io *io)
   struct mrc_adios_io *aio = to_adios(io);
   int ierr;
 
-  char *mode = aio->mode;
-  if (strcmp(mode, "w") == 0) {
+  ierr = adios_close(aio->write_file); AERR(ierr);
+  aio->write_file = 0;
+  aio->group_size = 0;
 
-    ierr = adios_close(aio->write_file); AERR(ierr);
-    aio->write_file = 0;
-    aio->group_size = 0;
-  } else if (strcmp(mode, "r") == 0) {
-
-    ierr = adios_read_close(aio->read_file); AERR(ierr);
-    // FIXME : this may cause problems if we read more than once...
-    ierr = adios_read_finalize_method(ADIOS_READ_METHOD_BP); AERR(ierr);
-    adios_selection_delete(aio->selection);
-    aio->read_file = NULL;
-  } else {
-    assert(0);
-  }  
   free(aio->mode);
 }
 
@@ -628,140 +605,9 @@ _mrc_adios_write_attr(struct mrc_io *io, const char *path, int type,
   free(adname);
 }
 
-static bool
-check_writeblock(struct mrc_io *io, ADIOS_FILE *fd_p, const char *adname, ADIOS_SELECTION **select) 
-{
-  // FIXME : Some things are apparently still written from a single proc in psc (field
-  // and particle patches are local objects) so the writeblock selection messes up.
-  // We need to add a check for how many writeblocks we have, and if there's only one then 
-  // use that. Also, we might as well add in a check that the number of writeblocks are the
-  // same as the io size on this communicator.
-
-  ADIOS_VARINFO *info = adios_inq_var(fd_p, adname); assert(info);
-  if (info->nblocks[0] == 1) {
-    *select = NULL;
-    adios_free_varinfo(info);
-    return false;
-  } 
-  else if (info->nblocks[0] == io->size) {
-    adios_free_varinfo(info);
-    return false;
-  } 
-  else {
-    int ierr = adios_inq_var_blockinfo(fd_p, info); AERR(ierr);
-    *select = NULL;
-    for (int blk = 0; blk < info->nblocks[0]; blk++) {
-      if (info->blockinfo[blk].process_id == io->rank) {
-        *select = adios_selection_writeblock(blk);        
-         adios_free_varinfo(info);
-         return true;
-      }
-    }
-    mprintf("Error! %s: cannot associate rank %d to one of %d writeblocks\n", adname, io->rank, info->nblocks[0]);
-    for (int blk = 0; blk < info->nblocks[0]; blk++) {    
-      mprintf("Block %d - pid %d\n", blk, info->blockinfo[blk].process_id);
-    }
-    adios_free_varinfo(info);
-    assert(0);
-  }
-}
 
 static void
-_mrc_adios_read_attr(struct mrc_io *io, const char *path, int type,
-    const char *name, union param_u *pv)
-{
-  // FIXME : Most of these reads could probably be done more effeciently 
-  // using adios_inq_var, especially the scalar ones. The problem is that I want
-  // adios to function in places where serial io methods are currently used (ie, checkpointing),
-  // and those i/o procedures have a nasty habit of assuming that things aren't collective.
-  // Since ADIOS can mimic serial i/o via the writeblock selection, we're locking
-  // into that.
-
-  // Also note that because of way mrc objects depend on each other we cannot safely
-  // schedule a bunch of reads then do one perform call. Everytime this function
-  // is called the attribute needs to be read by the time it exits.
-
-  struct mrc_adios_io *aio = to_adios(io);
-
-  ADIOS_FILE *fd_p = aio->read_file;
-  ADIOS_SELECTION *select = aio->selection;
-  assert(select);
-  // Use path/name for adios name, and leave path blank.
-  char *adname = malloc(sizeof(*adname) * (strlen(path) + strlen(name) + 5));
-  assert(adname);
-  sprintf(adname, "%s/%s", path, name);
-
-  char *nrname;
-  int ierr;
-  bool free_select = false;
-  switch (type) {
-  case PT_SELECT:
-  case PT_INT:
-  case MRC_VAR_INT:
-  case PT_BOOL: 
-  case MRC_VAR_BOOL:
-  case PT_FLOAT:
-  case MRC_VAR_FLOAT:
-  case PT_DOUBLE:
-  case MRC_VAR_DOUBLE:
-    free_select = check_writeblock(io, fd_p, adname, &select);
-    ierr = adios_schedule_read(fd_p, select, adname, 0, 1, pv); AERR(ierr);
-    ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
-    break;
-  case PT_STRING:
-    free_select = check_writeblock(io, fd_p, adname, &select);
-    nrname = malloc(sizeof(*nrname) * (strlen(adname) + 10));
-    assert(nrname);
-    sprintf(nrname, "%s-sz", adname);
-    int size;
-    ierr = adios_schedule_read(fd_p, select, nrname, 0, 1, &size); AERR(ierr);
-    ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
-    pv->u_string = malloc(sizeof(char) * (size + 10 ));
-    ierr = adios_schedule_read(fd_p, select, adname, 0, 1, (void *) pv->u_string); AERR(ierr);
-    ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
-
-    if (strcmp(pv->u_string, "(NULL)") == 0) {
-      free((char *) pv->u_string);
-      pv->u_string = NULL;
-    } 
-    free(nrname);
-    break;
-  case PT_INT3:
-  case PT_FLOAT3:
-  case PT_DOUBLE3:
-  case MRC_VAR_DOUBLE3:
-    free_select = check_writeblock(io, fd_p, adname, &select);
-    ierr = adios_schedule_read(fd_p, select, adname, 0, 1, pv); AERR(ierr);
-    ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
-    break;
-  case PT_INT_ARRAY:
-    free_select = check_writeblock(io, fd_p, adname, &select);
-    nrname = malloc(sizeof(*nrname) * (strlen(adname) + 10));
-    assert(nrname);
-    sprintf(nrname, "%s-nrvals", adname);
-    ierr = adios_schedule_read(fd_p, select, nrname, 0, 1, &pv->u_int_array.nr_vals); AERR(ierr);
-    ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
-    // FIXME : I don't like that nr_vals = 0 things can be written now..
-    if (pv->u_int_array.nr_vals > 0) {
-      pv->u_int_array.vals = calloc(pv->u_int_array.nr_vals, sizeof(int));
-      ierr = adios_schedule_read(fd_p, select, adname, 0, 1, pv->u_int_array.vals); AERR(ierr);
-      ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
-    }
-    free(nrname);
-    break;
-  case PT_PTR:
-    break;
-  default:
-    mpi_printf(mrc_io_comm(io), "mrc_io_adios: not reading attr '%s' (type %d)\n",
-      adname, type);
-    assert(0);
-  }
-  free(adname);
-  if (free_select) adios_selection_delete(select);
-}
-
-static void
-_mrc_adios_write_ndarrary(struct mrc_io *io, const char *path, struct mrc_ndarray *nd)
+_mrc_adios_write_ndarray(struct mrc_io *io, const char *path, struct mrc_ndarray *nd)
 {
   assert(nd->n_dims);
   assert(mrc_ndarray_f_contiguous(nd));
@@ -848,12 +694,488 @@ _mrc_adios_write_fld(struct mrc_io *io, const char *path, struct mrc_fld *fld)
 
 }
 
+
 static void
-_mrc_adios_read_ndarrary(struct mrc_io *io, const char *path, struct mrc_ndarray *nd)
+_mrc_adios_set_size(struct mrc_io *io, uint64_t group_size)
+{
+  struct mrc_adios_io *aio = to_adios(io);
+  aio->group_size = group_size;
+}
+
+static void
+_mrc_adios_get_write_file(struct mrc_io *io, int64_t *wfp)
+{
+  struct mrc_adios_io *aio = to_adios(io);
+  *wfp = aio->write_file;
+}
+
+static struct mrc_obj_method mrc_adios_methods[] = {
+  MRC_OBJ_METHOD("set_group_size",   _mrc_adios_set_size),
+  MRC_OBJ_METHOD("get_write_file",   _mrc_adios_get_write_file),    
+  {}
+};
+
+
+struct mrc_io_ops mrc_io_adios_ops = {
+  .name          = "adios_write",
+  .parallel      = false, // This is kind of a lie, but it should function like serial io
+  .size          = sizeof(struct mrc_adios_io),
+  .methods       = mrc_adios_methods,
+  .open          = _mrc_adios_open,
+  .close         = _mrc_adios_close,
+  .write_attr    = _mrc_adios_write_attr,
+  .write_fld     = _mrc_adios_write_fld,
+  .write_ndarray = _mrc_adios_write_ndarray,
+};
+
+#undef to_adios
+
+// Add a "meta" wrapper class that will take the name "adios"
+// This class will buffer all the mrc_io calls made between
+// "open" and "close", then replay them using the correct helper
+// classes. If you want better performance, it would be work looking
+// at how psc_checkpointing works and explicitly calling the internal
+// types yourself.
+
+// NOTE : The reads only exist on this top-level object
+
+enum {
+  AW_ATTR,
+  AW_FLD,
+  AW_NDARRAY,
+  NR_AW_OPS,
+};
+
+
+struct buffered_op {
+  list_t buffer;
+  int op_type; ///< what sort of op we need to replay
+  char *path; ///< the path that the op got called with
+  char *name; ///< the name the op got called with
+  void *address; ///< the address the op was passes(for fld write, etc), or any extra memory we alloced (for attr_write)
+  union param_u u; ///< the value of the parameter the op was called with (for attr_write)
+  int param_type; ///< the type of the param (for attr_write)
+};
+
+struct mrc_adios_meta
+{
+  list_t buffered_writes;
+  bool run_define;
+  ADIOS_FILE *read_file;
+  ADIOS_SELECTION *selection;
+  char *mode;
+  int max_buffer;
+  char *method; ///< the transport method for this group
+  char *trans_opts; ///< a comma separated string of options fof the select transport method
+};
+
+#define to_meta(io) mrc_to_subobj(io, struct mrc_adios_meta)
+
+static void
+_meta_open(struct mrc_io *io, const char *mode)
+{
+
+  struct mrc_adios_meta *aio = to_meta(io);
+  int ierr;
+
+  if (!adios_is_initialized()) {
+    ierr = adios_init_noxml(mrc_io_comm(io)); AERR(ierr);
+    adios_set_max_buffer_size(aio->max_buffer);
+  }
+  aio->mode = strdup(mode);
+
+  if (strcmp(mode, "w") == 0) {
+
+    INIT_LIST_HEAD(&(aio->buffered_writes));
+
+  } else if (strcmp(mode, "r") == 0) {
+
+    char filename[strlen(io->par.outdir) + strlen(io->par.basename) + 20];
+    sprintf(filename, "%s/%s.%06d.bp", io->par.outdir, io->par.basename,
+      io->step);
+
+    // FIXME: hardcoding open method here
+    ierr = adios_read_init_method(ADIOS_READ_METHOD_BP, mrc_io_comm(io), "abort_on_error"); AERR(ierr);
+    aio->read_file = adios_read_open_file(filename, ADIOS_READ_METHOD_BP, mrc_io_comm(io));
+    // FIXME: This only allows reading back on the same number of processors!
+    aio->selection = adios_selection_writeblock(io->rank);
+    assert(aio->read_file);
+
+  } else {
+    assert(0);
+  }
+
+}
+
+static void
+_mrc_adios_get_read_file(struct mrc_io *io, ADIOS_FILE **rfp)
+{
+  struct mrc_adios_meta *aio = to_meta(io);
+  *rfp = aio->read_file;
+}
+
+static void
+_meta_write_attr(struct mrc_io *io, const char *path, int type,
+    const char *name, union param_u *pv)
+{
+  struct mrc_adios_meta *aio = to_meta(io);
+  struct buffered_op *newop = calloc(1, sizeof(*newop));
+  newop->op_type = AW_ATTR;
+  newop->path = strdup(path);
+  newop->param_type = type;
+  newop->name = strdup(name);
+  memcpy(&(newop->u), pv, sizeof(*pv));
+
+  // Because it's possible that this can be called with the union pointing
+  // to a string or array on the stack, we also need to duplicate the memory
+  // that the param union points too.
+  switch (type) {
+  case PT_SELECT:
+  case PT_INT:
+  case MRC_VAR_INT:
+  case PT_BOOL: 
+  case MRC_VAR_BOOL:
+  case PT_FLOAT:
+  case MRC_VAR_FLOAT:
+  case PT_DOUBLE:
+  case MRC_VAR_DOUBLE:
+  case PT_INT3:
+  case PT_FLOAT3:
+  case PT_DOUBLE3:
+  case MRC_VAR_DOUBLE3:
+  // nothing to do for all of these, because param_u is large
+  // enough to hold their actual values
+    break;
+  case PT_STRING:
+    // Copy the string itself, in case it lives on the stack.
+    if (pv->u_string) {
+      newop->u.u_string =  strdup(pv->u_string);
+    }
+    break;
+  case PT_INT_ARRAY:
+    if (pv->u_int_array.nr_vals > 0) {
+      newop->u.u_int_array.vals = (int *) calloc(pv->u_int_array.nr_vals, sizeof(int));
+      memcpy((void *) newop->u.u_int_array.vals, 
+             (void *) pv->u_int_array.vals,
+             sizeof(int) * pv->u_int_array.nr_vals);
+    }
+    break;
+  case PT_PTR:
+    break;
+  default:
+    mpi_printf(mrc_io_comm(io), "mrc_io_adios: not writing attr '%s' (type %d)\n",
+      name, type);
+    assert(0);
+  }
+
+  list_add_tail(&(newop->buffer), &(aio->buffered_writes));
+}
+
+static void
+_meta_write_fld(struct mrc_io *io, const char *path, struct mrc_fld *fld)
+{
+  struct mrc_adios_meta *aio = to_meta(io);
+  struct buffered_op *newop = calloc(1, sizeof(*newop));
+  newop->op_type = AW_FLD;
+  newop->path = strdup(path);
+  newop->address = (void *) fld;
+  list_add_tail(&(newop->buffer), &(aio->buffered_writes));
+}
+
+static void
+_meta_write_ndarray(struct mrc_io *io, const char *path, struct mrc_ndarray *nd)
+{
+  struct mrc_adios_meta *aio = to_meta(io);
+  struct buffered_op *newop = calloc(1, sizeof(*newop));
+  newop->op_type = AW_NDARRAY;
+  newop->path = strdup(path);
+  newop->address = (void *) nd;
+  list_add_tail(&(newop->buffer), &(aio->buffered_writes)); 
+}
+
+void __attribute__((noinline))
+_meta_close(struct mrc_io *io)
+{
+  struct mrc_adios_meta *aio = to_meta(io);
+  char *mode = aio->mode;
+  int ierr;
+
+  if (strcmp(mode, "r") == 0) {
+
+    ierr = adios_read_close(aio->read_file); AERR(ierr);
+    // FIXME : this may cause problems if we read more than once...
+    ierr = adios_read_finalize_method(ADIOS_READ_METHOD_BP); AERR(ierr);
+    adios_selection_delete(aio->selection);
+    aio->read_file = NULL;
+
+  } else if (strcmp(mode, "w") == 0) {
+
+    // Time to replay the buffered operations using the three stages
+    // First, see if we need to regenerate the definitions
+    bool adios_group_defined = false;
+
+    if (!list_empty(&defined_adios_groups)) {
+      struct defined_group *gptr;
+      list_for_each_entry(gptr, &defined_adios_groups, group_list) {
+        if(strcmp(gptr->name, mrc_io_name(io)) == 0) {
+          adios_group_defined = true;
+          break;
+        }
+      }
+    }
+
+    const char *adios_steps[] = { "adios_define", "adios_size", "adios_write"};
+
+    uint64_t payload_size = 0;
+
+    const char *basename, *outdir;
+    mrc_io_get_param_string(io, "basename", &basename);
+    mrc_io_get_param_string(io, "outdir", &outdir);
+
+    // start at 0 if we need to run define, otherwise start at 1
+    for (int step = (!(aio->run_define) && adios_group_defined); 
+             step < 3; step++) {
+
+      struct mrc_io *io2 = mrc_io_create(mrc_io_comm(io));
+      // FIXME: right now I copy stuff from the meta class into the
+      // internal classes. Maybe it would be better to use set from options,
+      // and override the type setting? I'm not really sure..
+      //mrc_io_set_from_options(io2);
+
+      mrc_io_set_type(io2, adios_steps[step]);
+      mrc_io_set_name(io2, mrc_io_name(io));
+      mrc_io_set_param_string(io2, "basename", basename);
+      mrc_io_set_param_string(io2, "outdir", outdir);
+      if ( step == 0) {
+        const char *transopt, *transmeth;
+        mrc_io_get_param_string(io, "transport_options", &transopt);
+        if (transopt) {
+          mrc_io_set_param_string(io2, "transport_options", transopt);
+        }
+        mrc_io_get_param_string(io, "method", &transmeth);
+        mrc_io_set_param_string(io2, "method", transmeth);
+      }
+
+      mrc_io_setup(io2);
+
+      if (step == 2) {
+        // call the method directrly
+        _mrc_adios_set_size(io2, payload_size);
+      }
+
+      mrc_io_open(io2, "w", io->step, io->time);
+
+      // Time to replay the buffered operations
+      struct buffered_op *bop;
+      list_for_each_entry(bop, &(aio->buffered_writes), buffer) {
+        switch (bop->op_type) {
+          case AW_ATTR:
+            mrc_io_write_attr(io2, bop->path, bop->param_type, bop->name, &(bop->u));
+            break;
+          case AW_FLD:
+            mrc_io_write_fld(io2, bop->path, (struct mrc_fld *) bop->address);
+            break;
+          case AW_NDARRAY:
+            mrc_io_write_ndarray(io2, bop->path,
+                                     (struct mrc_ndarray *) bop->address);
+            break;
+          default:
+            assert(0);
+        }
+      }
+
+      mrc_io_close(io2);
+
+      if (step == 1) {
+        // call the method directly
+        _mrc_adios_final_size(io2, &payload_size);
+      }
+
+      mrc_io_destroy(io2);
+
+      if (step == 0) {
+        aio->run_define = false;
+      }
+    }
+
+    list_t *curr, *next;
+    // Clean up the buffer
+
+    list_for_each_safe(curr, next, &(aio->buffered_writes)) {
+      struct buffered_op *bop = container_of(curr, struct buffered_op, buffer);
+      switch (bop->op_type) {
+        case AW_ATTR:
+          free(bop->path);
+          free(bop->name);
+          // these two types have extra allocations, so we need to clean it up
+          if ((bop->param_type == PT_STRING) && bop->u.u_ptr) {
+            free(bop->u.u_ptr);
+          } else if ((bop->param_type == PT_INT_ARRAY) && (bop->u.u_int_array.nr_vals > 0)) {
+            free(bop->u.u_int_array.vals);
+          }
+          break;
+        case AW_FLD:
+          free(bop->path);
+          break;
+        case AW_NDARRAY:
+          free(bop->path);
+          break;
+        default:
+          assert(0);
+      }
+      list_del(curr);
+      free(bop);
+    }
+
+  }
+  
+  free(aio->mode);
+}
+
+static bool
+check_writeblock(struct mrc_io *io, ADIOS_FILE *fd_p, const char *adname, ADIOS_SELECTION **select) 
+{
+  // FIXME : Some things are apparently still written from a single proc in psc (field
+  // and particle patches are local objects) so the writeblock selection messes up.
+  // We need to add a check for how many writeblocks we have, and if there's only one then 
+  // use that. Also, we might as well add in a check that the number of writeblocks are the
+  // same as the io size on this communicator.
+
+  ADIOS_VARINFO *info = adios_inq_var(fd_p, adname); assert(info);
+  if (info->nblocks[0] == 1) {
+    *select = NULL;
+    adios_free_varinfo(info);
+    return false;
+  } 
+  else if (info->nblocks[0] == io->size) {
+    adios_free_varinfo(info);
+    return false;
+  } 
+  else {
+    int ierr = adios_inq_var_blockinfo(fd_p, info); AERR(ierr);
+    *select = NULL;
+    for (int blk = 0; blk < info->nblocks[0]; blk++) {
+      if (info->blockinfo[blk].process_id == io->rank) {
+        *select = adios_selection_writeblock(blk);        
+         adios_free_varinfo(info);
+         return true;
+      }
+    }
+    mprintf("Error! %s: cannot associate rank %d to one of %d writeblocks\n", adname, io->rank, info->nblocks[0]);
+    for (int blk = 0; blk < info->nblocks[0]; blk++) {    
+      mprintf("Block %d - pid %d\n", blk, info->blockinfo[blk].process_id);
+    }
+    adios_free_varinfo(info);
+    assert(0);
+  }
+}
+
+static void
+_mrc_adios_read_attr(struct mrc_io *io, const char *path, int type,
+    const char *name, union param_u *pv)
+{
+  // FIXME : Most of these reads could probably be done more effeciently 
+  // using adios_inq_var, especially the scalar ones. The problem is that I want
+  // adios to function in places where serial io methods are currently used (ie, checkpointing),
+  // and those i/o procedures have a nasty habit of assuming that things aren't collective.
+  // Since ADIOS can mimic serial i/o via the writeblock selection, we're locking
+  // into that.
+
+  // Also note that because of way mrc objects depend on each other we cannot safely
+  // schedule a bunch of reads then do one perform call. Everytime this function
+  // is called the attribute needs to be read by the time it exits.
+
+  struct mrc_adios_meta *aio = to_meta(io);
+
+  ADIOS_FILE *fd_p = aio->read_file;
+  ADIOS_SELECTION *select = aio->selection;
+  assert(select);
+  // Use path/name for adios name, and leave path blank.
+  char *adname = malloc(sizeof(*adname) * (strlen(path) + strlen(name) + 5));
+  assert(adname);
+  sprintf(adname, "%s/%s", path, name);
+
+  char *nrname;
+  int ierr;
+  bool free_select = false;
+  switch (type) {
+  case PT_SELECT:
+  case PT_INT:
+  case MRC_VAR_INT:
+  case PT_BOOL: 
+  case MRC_VAR_BOOL:
+  case PT_FLOAT:
+  case MRC_VAR_FLOAT:
+  case PT_DOUBLE:
+  case MRC_VAR_DOUBLE:
+    free_select = check_writeblock(io, fd_p, adname, &select);
+    ierr = adios_schedule_read(fd_p, select, adname, 0, 1, pv); AERR(ierr);
+    ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
+    break;
+  case PT_STRING:
+    free_select = check_writeblock(io, fd_p, adname, &select);
+    nrname = malloc(sizeof(*nrname) * (strlen(adname) + 10));
+    assert(nrname);
+    sprintf(nrname, "%s-sz", adname);
+    int size;
+    ierr = adios_schedule_read(fd_p, select, nrname, 0, 1, &size); AERR(ierr);
+    ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
+    pv->u_string = malloc(sizeof(char) * (size + 10 ));
+    ierr = adios_schedule_read(fd_p, select, adname, 0, 1, (void *) pv->u_string); AERR(ierr);
+    ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
+
+    if (strcmp(pv->u_string, "(NULL)") == 0) {
+      free((char *) pv->u_string);
+      pv->u_string = NULL;
+    } 
+    free(nrname);
+    break;
+  case PT_INT3:
+  case PT_FLOAT3:
+  case PT_DOUBLE3:
+  case MRC_VAR_DOUBLE3:
+    free_select = check_writeblock(io, fd_p, adname, &select);
+    ierr = adios_schedule_read(fd_p, select, adname, 0, 1, pv); AERR(ierr);
+    ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
+    break;
+  case PT_INT_ARRAY:
+    free_select = check_writeblock(io, fd_p, adname, &select);
+    nrname = malloc(sizeof(*nrname) * (strlen(adname) + 10));
+    assert(nrname);
+    sprintf(nrname, "%s-nrvals", adname);
+    ierr = adios_schedule_read(fd_p, select, nrname, 0, 1, &pv->u_int_array.nr_vals); AERR(ierr);
+    ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
+    // FIXME : I don't like that nr_vals = 0 things can be written now..
+    if (pv->u_int_array.nr_vals > 0) {
+      pv->u_int_array.vals = calloc(pv->u_int_array.nr_vals, sizeof(int));
+      ierr = adios_schedule_read(fd_p, select, adname, 0, 1, pv->u_int_array.vals); AERR(ierr);
+      ierr = adios_perform_reads(fd_p, 1); AERR(ierr);
+    }
+    free(nrname);
+    break;
+  case PT_PTR:
+    break;
+  default:
+    mpi_printf(mrc_io_comm(io), "mrc_io_adios: not reading attr '%s' (type %d)\n",
+      adname, type);
+    assert(0);
+  }
+  free(adname);
+  if (free_select) adios_selection_delete(select);
+}
+
+static struct mrc_obj_method meta_adios_methods[] = {
+  MRC_OBJ_METHOD("get_read_file",    _mrc_adios_get_read_file),
+  {}
+};
+
+
+static void
+_mrc_adios_read_ndarray(struct mrc_io *io, const char *path, struct mrc_ndarray *nd)
 {
   assert(nd->n_dims);
   assert(mrc_ndarray_f_contiguous(nd));
-  struct mrc_adios_io *aio = to_adios(io);
+  struct mrc_adios_meta *aio = to_meta(io);
   ADIOS_FILE *fd_p = aio->read_file;
   ADIOS_SELECTION *select = aio->selection;
 
@@ -873,7 +1195,7 @@ static void
 _mrc_adios_read_fld(struct mrc_io *io, const char *path, struct mrc_fld *fld)
 {
 
-  struct mrc_adios_io *aio = to_adios(io);
+  struct mrc_adios_meta *aio = to_meta(io);
   ADIOS_FILE *fd_p = aio->read_file;
   ADIOS_SELECTION *select = aio->selection;
 
@@ -925,48 +1247,30 @@ _mrc_adios_read_fld(struct mrc_io *io, const char *path, struct mrc_fld *fld)
 
 }
 
-static void
-_mrc_adios_set_size(struct mrc_io *io, uint64_t group_size)
-{
-  struct mrc_adios_io *aio = to_adios(io);
-  aio->group_size = group_size;
-}
-
-static void
-_mrc_adios_get_read_file(struct mrc_io *io, ADIOS_FILE **rfp)
-{
-  struct mrc_adios_io *aio = to_adios(io);
-  *rfp = aio->read_file;
-}
-
-static void
-_mrc_adios_get_write_file(struct mrc_io *io, int64_t *wfp)
-{
-  struct mrc_adios_io *aio = to_adios(io);
-  *wfp = aio->write_file;
-}
-
-static struct mrc_obj_method mrc_adios_methods[] = {
-  MRC_OBJ_METHOD("set_group_size",   _mrc_adios_set_size),
-  MRC_OBJ_METHOD("get_read_file",    _mrc_adios_get_read_file),
-  MRC_OBJ_METHOD("get_write_file",   _mrc_adios_get_write_file),    
-  {}
+#define VAR(x) (void *)offsetof(struct mrc_adios_meta, x)
+static struct param adios_meta_descr[] = {
+  { "method"              , VAR(method)               , PARAM_STRING("MPI")      },
+  { "transport_options"   , VAR(trans_opts)           , PARAM_STRING(NULL)       },
+  { "max_buffer"          , VAR(max_buffer)           , PARAM_INT(100)           },
+  { "run_define"          , VAR(run_define)           , PARAM_BOOL(false)        },
+  {},
 };
+#undef VAR
 
-
-struct mrc_io_ops mrc_io_adios_ops = {
-  .name          = "adios_exe",
+struct mrc_io_ops mrc_io_adios_meta_ops = {
+  .name          = "adios",
   .parallel      = false, // This is kind of a lie, but it should function like serial io
-  .size          = sizeof(struct mrc_adios_io),
-  .methods       = mrc_adios_methods,
-  .open          = _mrc_adios_open,
-  .close         = _mrc_adios_close,
-  .write_attr    = _mrc_adios_write_attr,
+  .size          = sizeof(struct mrc_adios_meta),
+  .param_descr   =  adios_meta_descr,
+  .methods       =  meta_adios_methods,
+  .open          = _meta_open,
+  .close         = _meta_close,
+  .write_attr    = _meta_write_attr,
   .read_attr     = _mrc_adios_read_attr,  
-  .write_fld     = _mrc_adios_write_fld,
+  .write_fld     = _meta_write_fld,
   .read_fld      = _mrc_adios_read_fld,
-  .write_ndarray = _mrc_adios_write_ndarrary,
-  .read_ndarray  = _mrc_adios_read_ndarrary,
+  .write_ndarray = _meta_write_ndarray,
+  .read_ndarray  = _mrc_adios_read_ndarray,
 };
 
-#undef to_adios
+#undef to_meta
