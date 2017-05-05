@@ -304,7 +304,7 @@ psc_fields_c_write(struct psc_fields *flds, struct mrc_io *io)
     return;
   }
 
-  if (strcmp(mrc_io_type(io),"adios") == 0) {
+  if (strcmp(mrc_io_type(io),"adios_write") == 0) {
     int64_t fd_p;
     a_get_write_t get_write_file = (a_get_write_t) mrc_io_get_method(io, "get_write_file");
     get_write_file(io, &fd_p);
