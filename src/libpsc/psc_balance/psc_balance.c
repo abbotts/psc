@@ -869,6 +869,10 @@ psc_balance_run(struct psc_balance *bal, struct psc *psc)
   mrc_domain_destroy(domain_old);
 
   psc_stats_stop(st_time_balance);
+
+  // Set this step as the time of the last update, so the ADIOS checkpointing
+  // can know if it needs to rebuild its variable index
+  bal->last_update = psc->timestep;
 }
 
 // ----------------------------------------------------------------------
@@ -912,6 +916,7 @@ static struct param psc_balance_descr[] = {
   { "factor_fields"    , VAR(factor_fields)    , PARAM_DOUBLE(1.)        },
   { "print_loads"      , VAR(print_loads)      , PARAM_BOOL(false)       },
   { "write_loads"      , VAR(write_loads)      , PARAM_BOOL(false)       },
+  { "last_update"      , VAR(last_update)      , PARAM_INT(0)            },
   {},
 };
 #undef VAR

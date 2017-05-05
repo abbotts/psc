@@ -1,6 +1,7 @@
 
 #include "psc.h"
 #include "psc_glue.h"
+#include "psc_balance.h"
 
 #include "mrc_io.h"
 
@@ -72,8 +73,24 @@ psc_write_checkpoint(struct psc *psc)
 
 #ifdef HAVE_ADIOS
   static bool adios_group_defined;
+  static int step_defined;
+
   if (psc->prm.adios_checkpoint) {
     const char *adios_steps[] = { "adios_define", "adios_size", "adios_write"};
+
+    // If the rebalancing has been run since we ran the define, then we need to regenerate
+    // the list. We just need to call 'adios_define' again, since it has a check to clear out
+    // the old definitions if it sees them in place.
+    int last_balance;
+    psc_balance_get_param_int(psc->balance, "last_update", &last_balance);
+
+    // If we rebalanced since the last checkpoint, we need to redefine the adios
+    // variable names.
+    // (checkpoint gets run before rebalance in a step, hence the >=)
+    if (last_balance >= step_defined) {
+      adios_group_defined = false;
+      mprintf("Rebalance detected, re-defining\n");
+    }
 
     uint64_t payload_size = 0;
     for (int step = 0; step < 3; step++) {
@@ -106,6 +123,7 @@ psc_write_checkpoint(struct psc *psc)
 
       if (step == 0) {
         adios_group_defined = true;
+        step_defined = psc->timestep;
       }
     }
   } else {

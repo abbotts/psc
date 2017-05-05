@@ -11,6 +11,7 @@ struct psc_balance {
   double factor_fields;
   bool print_loads;
   bool write_loads;
+  int last_update; ///< indicate the last time balance update was run (needed for ADIOS checkpointing)
 };
 
 struct communicate_ctx;

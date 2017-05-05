@@ -245,16 +245,19 @@ _mrc_adios_define_open(struct mrc_io *io, const char *mode)
     gptr->name = strdup(mrc_io_name(io));
     gptr->gid = adef->group_id;
     list_add_tail(&(gptr->group_list), &defined_adios_groups);
+
+    // Method and outdir should only be defined on the initial creation of a group,
+    // otherwise things get screwed up inside adios (TODO: isolate a MWE for this)
+    const char *tmethod, *outdir, *topts;
+    mrc_io_get_param_string(io, "method", &tmethod);
+    mrc_io_get_param_string(io, "transport_options", &topts);  
+    if (!topts) {
+      topts = "";
+    }
+    mrc_io_get_param_string(io, "outdir", &outdir);
+    ierr = adios_select_method(adef->group_id, tmethod, topts, ""); AERR(ierr);
   }
 
-  const char *tmethod, *outdir, *topts;
-  mrc_io_get_param_string(io, "method", &tmethod);
-  mrc_io_get_param_string(io, "transport_options", &topts);  
-  if (!topts) {
-    topts = "";
-  }
-  mrc_io_get_param_string(io, "outdir", &outdir);
-  ierr = adios_select_method(adef->group_id, tmethod, topts, ""); AERR(ierr);
 }
 
 static void
