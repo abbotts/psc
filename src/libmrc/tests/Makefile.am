@@ -34,11 +34,6 @@ check_PROGRAMS = \
 	tutorial_mrc_obj \
 	test_fdtd_amr
 
-if HAVE_ADIOS
-check_PROGRAMS += \
-	test_adios_io
-endif HAVE_ADIOS
-
 tutorial_mrc_obj_SOURCES = tutorial_mrc_obj.c vector.c vector_double.c vector_float.c \
 	vector.h \
 	vector_private.h
