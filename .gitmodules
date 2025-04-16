@@ -1,0 +1,3 @@
+[submodule "psc"]
+	path = psc
+	url = https://github.com/psc-code/psc.git
