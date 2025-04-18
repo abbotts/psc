@@ -1,6 +1,6 @@
 
 #ifdef GTENSOR_DEVICE_HIP
-#include <hiprand_kernel.h>
+#include <hiprand/hiprand_kernel.h>
 #else
 #include <curand_kernel.h>
 #define hiprand_init curand_init

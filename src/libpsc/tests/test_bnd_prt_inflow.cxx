@@ -9,11 +9,11 @@
 #include "setup_particles.hxx"
 #include "pushp.hxx"
 #include "dim.hxx"
+#include "particles_simple.inl"
 #ifdef USE_CUDA
 #include "../libpsc/cuda/mparticles_cuda.hxx"
 #include "../libpsc/cuda/mparticles_cuda.inl"
 #endif
-#include "particles_simple.inl"
 #include <kg/io.h>
 
 template <typename _Mparticles, typename _MakeGrid = MakeTestGrid1>
@@ -204,7 +204,6 @@ public:
 
   std::vector<psc::particle::Inject> prts;
 };
-
 static double half() { return 0.5; }
 
 TEST(TestSetupParticlesInflow, Advance)
