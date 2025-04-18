@@ -1,0 +1,9 @@
+set(CMAKE_C_COMPILER  "cc" CACHE PATH "")
+set(CMAKE_CXX_COMPILER  "CC" CACHE PATH "")
+set(CMAKE_Fortran_COMPILER "ftn" CACHE PATH "")
+
+set(CMAKE_CXX_FLAGS "" CACHE PATH "")
+set(CMAKE_Fortran_FLAGS "-ffree-line-length-none" CACHE PATH "")
+
+set(USE_CUDA "on" CACHE PATH "")
+set(CMAKE_CUDA_ARCHITECTURES "sm80")
