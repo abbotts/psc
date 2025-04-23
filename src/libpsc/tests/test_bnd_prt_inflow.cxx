@@ -16,6 +16,7 @@
 #endif
 #include <kg/io.h>
 
+#define half code_half
 template <typename _Mparticles, typename _MakeGrid = MakeTestGrid1>
 struct Config
 {
